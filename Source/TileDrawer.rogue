@@ -1,0 +1,65 @@
+uses Plasmacore
+
+class TileDrawer [aspect]
+  METHODS
+    method drawFunc->Function( index:Int32, ij:XY, bounds:Box ) [aspect]
+endClass
+
+class StupidTileDrawer : TileDrawer
+  GLOBAL PROPERTIES
+    level_1 = @| +          
+               | +          
+               |++     +++++
+               |+      +    
+               |+  +   +    
+               |+ ++   +    
+               |+ +   ++++++
+               |+ +   +     
+               |+++++++     
+               | +    ++    
+               | +     +    
+               | +     +    
+  PROPERTIES
+    trackColor=Color.GRAY:Color
+    landColor=Color.GREEN:Color
+    errorColor=Color.MAGENTA:Color
+    atlas:Character[][]
+    drawFunc:Function( Int32, XY, Box )
+  METHODS
+    method init ( atlas:String )
+      local rowStrs = atlas.split("\n")
+      local width = rowStrs[0].count
+      local height = rowStrs.count
+      println "$x$\n$" (width, height, atlas)
+      @atlas = Dim<<Character>>(width, height)
+      forEach (j in 0..<height)
+        local rowStr = rowStrs[j]
+        println "$:$" (j,rowStr)
+        if (rowStr.count != width) throw Exception("uneven atlas")
+        forEach (i in 0..<width)
+          println "?? $" (rowStr[i])
+          @atlas[i][j] = rowStr[i]
+        endForEach
+      endForEach
+      drawFunc = this=>draw
+
+    method set_atlas( atlas:String )
+      throw Exception("not implemented set_atlas")
+
+    method drawFunc->Function( index:Int32, ij:XY, bounds:Box )
+      return @drawFunc
+
+    method width->Int32
+      return atlas[0].count
+
+    method height->Int32
+      return atlas.count
+
+    method colorAt( i:Int32, j:Int32 )->Color
+      if (i > width or j > height) return errorColor
+      local char = atlas[i][j]
+      return select(char){' ':landColor || '+':trackColor || errorColor}
+
+    method draw( index:Int32, ij:XY, bounds:Box )
+      bounds.fill( colorAt(ij.x, ij.y) )
+endClass

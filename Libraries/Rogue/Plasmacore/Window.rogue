@@ -1,0 +1,153 @@
+#==============================================================================
+# Window.rogue
+#==============================================================================
+module Plasmacore
+
+class Window
+  PROPERTIES
+    name                  : String
+    id                    : Int32
+
+    displays              = StringTable<<Display>>()
+    current_display       : Display
+    current_display_name  = ""
+
+  METHODS
+    method init( name )
+      id = Plasmacore.create_resource_id
+      WindowManager.windows_by_id[ id ] = this
+      WindowManager.window_list.add( this )
+      Message( "Window.create" ).set("id",id).set("name",name).post
+
+    method call( method_name:String )
+      Message( "Window.call" ).set("id",id).set("method_name",method_name).post
+
+    method on_cleanup
+      close
+
+    method close
+      WindowManager.windows_by_id.remove( id )
+      WindowManager.window_list.remove( this )
+      Message( "Window.close" ).set("id",id).post
+
+    method find_display( display_name_buffer:StringBuilder )->Display
+      if (display_name_buffer == current_display_name) return current_display
+
+      local display = displays[ display_name_buffer ]
+      if (display)
+        current_display_name = display.name
+        current_display = display
+        return display
+
+      else
+        local display_name = display_name_buffer->String
+        display = Display( display_name )
+        display.window = this
+        displays[ display_name ] = display
+        current_display_name = display.name
+        current_display = display
+        return display
+
+      endIf
+
+    method handle_key_event( display_name_buffer:StringBuilder, e:KeyEvent )
+      find_display( display_name_buffer ).handle( e )
+
+    method handle_pointer_event( display_name_buffer:StringBuilder, e:PointerEvent )
+      find_display( display_name_buffer ).handle( e )
+
+    method handle_key_event( display_name_buffer:StringBuilder, e:TextEvent )
+      find_display( display_name_buffer ).handle( e )
+
+    method handle_update_and_draw( display_name_buffer:StringBuilder, display_size:XY )
+      #{
+      local display = find_display( display_name_buffer )
+      display.update_and_draw( display_size )
+      }#
+
+    method show
+      Message( "Window.show" ).set("id",id).post
+
+endClass
+
+$if not target("Console")
+class WindowManager [essential singleton]
+  PROPERTIES
+    windows_by_id = Table<<Int32,Window>>()
+    window_list   = Window[]
+    string_buffer = StringBuilder()
+
+    current_window : Window
+
+  METHODS
+    method init
+      #{
+      MessageManager.add_listener( "Display.key_event",
+        function (m:Message)
+          local window_id = m.int32( "window_id" )
+          local display_name = m.string( "display_name", WindowManager.string_buffer.clear )
+          local keycode   = m.int32( "keycode" )
+          local unicode   = m.int32( "unicode" )
+          local syscode   = m.int32( "syscode" )
+          local is_repeat = m.logical( "is_repeat" )
+          local is_press  = m.logical( "is_press" )
+          if (not is_repeat) Keyboard.key_pressed[ keycode & 255 ] = is_press
+
+          local window    = WindowManager.find_window( window_id )
+          if (window)
+            local e = KeyEvent( keycode, unicode, syscode, is_press, is_repeat )
+            window.handle_key_event( display_name, e )
+          endIf
+        endFunction
+      )
+
+      MessageManager.add_listener( "Display.pointer_event",
+        function (m:Message)
+          local window_id = m.int32( "window_id" )
+          local display_name = m.string( "display_name", WindowManager.string_buffer.clear )
+          local type      = m.int32( "type" )
+          local x         = m.int32( "x" )
+          local y         = m.int32( "y" )
+          local dx        = m.real64( "dx" )
+          local dy        = m.real64( "dy" )
+          local button    = m.int32( "button" )
+          local id        = m.int32( "id" )
+
+          local window    = WindowManager.find_window( window_id )
+          if (window)
+            local e = PointerEvent( type, XY(x,y), XY(dx,dy), button, id )
+            window.handle_pointer_event( display_name, e )
+          endIf
+        endFunction
+      )
+
+      MessageManager.add_listener( "Display.update_and_draw",
+        function (m:Message)
+          local window_id = m.int32( "window_id" )
+          local display_name = m.string( "display_name", WindowManager.string_buffer.clear )
+          local display_size = XY( m.int32("width"), m.int32("height") )
+          local window    = WindowManager.find_window( window_id )
+          if (window)
+            window.handle_update_and_draw( display_name, display_size )
+          endIf
+        endFunction
+      )
+      }#
+
+    method find_window( window_id:Int32 )->Window
+      if (current_window and window_id == current_window.id) return current_window
+      current_window = windows_by_id[ window_id ]
+      return current_window
+
+    method set_display_screen( display_name:String, screen:Screen )
+      forEach (window in window_list)
+        forEach (key in window.displays.keys)
+          local display = window.displays[ key ]
+          if (display.name == display_name)
+            display.screen = screen
+          endIf
+        endForEach
+      endForEach
+endClass
+$endIf
+

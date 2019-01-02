@@ -1,0 +1,115 @@
+module Plasmacore
+
+class Shader
+  DEFINITIONS
+
+$if target("iOS") or target("Android") or target("emscripten")
+    GLSL_VERSION = ""
+
+    # An empty last line is required on HIGH_PRECISION and MEDIUM_PRECISION.
+    # Allows high precision if the device supports it
+    HIGH_PRECISION =   @|#ifdef GL_FRAGMENT_PRECISION_HIGH
+                        |precision highp float;
+                        |precision highp int;
+                        |#else
+                        |precision mediump float;
+                        |precision mediump int;
+                        |#endif
+                        |
+
+    # Definitely use medium precision
+    MEDIUM_PRECISION = @|precision mediump float;
+                        |precision mediump int;
+                        |
+    LOWP = " lowp "
+$else
+    GLSL_VERSION = "#version 110\n"
+    HIGH_PRECISION = ""
+    MEDIUM_PRECISION = ""
+    LOWP = " "
+$endIf
+
+  PROPERTIES
+    # OpenGL IDs
+    vertex_shader_id      : Int32
+    pixel_shader_id       : Int32
+    program_id            : Int32
+
+    fixed_color_setting     : Int32
+    transform_setting       : Int32
+    texture_settings        = Int32[]
+
+    position_attribute      : Int32
+    color_attribute         : Int32
+    normal_attribute        : Int32
+    uv_attribute            : Int32
+    world_transform_setting : Int32
+
+  METHODS
+    method init( vertex_shader:String, pixel_shader:String )
+      if (use_high_precision)
+        vertex_shader = GLSL_VERSION + HIGH_PRECISION + vertex_shader.replacing( "$LOWP", LOWP )
+        pixel_shader = GLSL_VERSION + HIGH_PRECISION + pixel_shader.replacing( "$LOWP", LOWP )
+      else
+        vertex_shader = GLSL_VERSION + MEDIUM_PRECISION + vertex_shader.replacing( "$LOWP", LOWP )
+        pixel_shader = GLSL_VERSION + MEDIUM_PRECISION + pixel_shader.replacing( "$LOWP", LOWP )
+      endIf
+
+      native @|$vertex_shader_id = (RogueInt32) glCreateShader( GL_VERTEX_SHADER );
+      compile_shader( vertex_shader_id, vertex_shader )
+      native @|$pixel_shader_id = (RogueInt32) glCreateShader( GL_FRAGMENT_SHADER );
+      compile_shader( pixel_shader_id, pixel_shader )
+
+      local location = 0
+      native @|$program_id = glCreateProgram();
+              |glAttachShader( $program_id, $vertex_shader_id );
+              |glAttachShader( $program_id, $pixel_shader_id );
+              |
+              |glLinkProgram( $program_id );
+              |
+              |$fixed_color_setting = glGetUniformLocation( $program_id, "fixed_color" );
+              |
+              |$position_attribute = glGetAttribLocation( $program_id, "position" );
+              |$color_attribute    = glGetAttribLocation( $program_id, "color" );
+              |$normal_attribute   = glGetAttribLocation( $program_id, "normal" );
+              |$uv_attribute       = glGetAttribLocation( $program_id,  "uv" );
+              |$world_transform_setting = glGetUniformLocation( $program_id, "world_transform" );
+              |$transform_setting       = glGetUniformLocation( $program_id, "transform" );
+              |
+              |int slot = 0;
+              |while ($location >= 0)
+              |{
+              |  char name[80];
+              |  sprintf( name, "texture_%d", slot );
+              |  $location = glGetUniformLocation( $program_id, name );
+
+                 texture_settings.add( location )
+
+      native @|
+              |  ++slot;
+              |}
+
+    method use_high_precision->Logical
+      return (OpenGL.max_texture_size >= 2048)
+
+    method compile_shader( shader:Int32, shader_source:String )
+      native @|const char* source = (const char*) $shader_source->utf8;
+              |glShaderSource( $shader, 1, &source, 0 );
+              |glCompileShader( $shader );
+              |
+              |GLint success = 0;
+              |glGetShaderiv( $shader, GL_COMPILE_STATUS, &success );
+              |if (success) return;
+              |
+              |GLint log_size = 0;
+              |glGetShaderiv( $shader, GL_INFO_LOG_LENGTH, &log_size );
+              |
+              |char* log = new char[ log_size ];
+              |glGetShaderInfoLog( $shader, log_size, &log_size, log );
+              |
+              |ROGUE_LOG_ERROR( "SHADER ERROR:\n%s\n", log );
+              |delete[] log;
+
+endClass
+
+

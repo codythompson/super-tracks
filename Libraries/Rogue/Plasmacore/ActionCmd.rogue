@@ -1,0 +1,143 @@
+module Plasmacore
+
+class ActionCmd
+  GLOBAL METHODS
+    method create( fn:Function() )->ActionCmd
+      return ActionCmdCall( fn )
+
+    method create( fn:Function(Real64), duration:Real64, progress_fn=ProgressFn.LINEAR:Function(Real64)->Real64 )->ActionCmd
+      return ActionCmdCallWithProgress( fn, duration, progress_fn )
+
+    method operator+( a:ActionCmd, b:ActionCmd )->ActionCmd
+      if (not a) return b
+      if (not b) return a
+      return a.and_then( b )
+
+    method operator|( a:ActionCmd, b:ActionCmd )->ActionCmd
+      if (not a) return b
+      if (not b) return a
+      return a.also( b )
+
+  PROPERTIES
+    duration        : Real64
+    progress_fn     = ProgressFn.LINEAR : Function(Real64)->Real64
+
+    next_node       : ActionCmd
+    concurrent_node : ActionCmd
+
+    t               : Real64
+    dt              : Real64
+    last_time       : Real64 # 0:not started
+
+  METHODS
+    method init( duration=0, progress_fn=ProgressFn.LINEAR )
+
+    method also( node:ActionCmd )->this
+      if (node)
+        local cur = this
+        while (cur.concurrent_node) cur = cur.concurrent_node
+        cur.concurrent_node = node
+      endIf
+      return this
+
+    method count->Int32
+      local n = 1
+      if (next_node) n += next_node.count
+      if (concurrent_node) n += concurrent_node.count
+      return n
+
+    method finish
+      if (duration < 0) duration = 0
+      t = duration
+
+    method insert_next( node:ActionCmd )->this
+      if (node) next_node = node.and_then( next_node )
+      return this
+
+    method is_finished->Logical
+      return (duration >= 0 and t >= duration)
+
+    method next->ActionCmd
+      # Finds the successor to this node, adjusts links if necessary, and
+      # returns it or the result of a call to its update().
+      if (next_node)
+        if (concurrent_node)
+          # Attach any parallel commands remaining in this finished command to the
+          # next command in this chain that will be the new head.
+          next_node = next_node.also( concurrent_node )
+          concurrent_node = null
+        endIf
+        return next_node.update
+      elseIf (concurrent_node)
+        return concurrent_node
+      else
+        return null
+      endIf
+
+    method on_start
+
+    method on_update
+
+    method on_finish
+
+    method progress->Real64
+      return select{ duration>0:progress_fn(t/duration) || 1.0 }
+
+    method set_duration( @duration )->this
+      return this
+
+    method set_progress_fn( @progress_fn )->this
+      return this
+
+    method and_then( node:ActionCmd )->this
+      if (node)
+        local cur = this
+        while (cur.next_node) cur = cur.next_node
+        cur.next_node = node
+      endIf
+      return this
+
+    method update->ActionCmd
+      local cur_time = System.time
+      if (not last_time)
+        on_start
+      else
+        dt = (cur_time - last_time).clamped(0,1.0/10.0)
+        t += dt
+        if (duration >= 0 and t > duration) t = duration
+      endIf
+
+      last_time = cur_time
+
+      on_update
+
+      if (concurrent_node)
+        concurrent_node = concurrent_node.update
+      endIf
+
+      if (duration < 0 or t < duration)
+        return this
+      endIf
+
+      on_finish
+
+      return next
+endClass
+
+
+class ActionCmdWait( duration ) : ActionCmd;
+
+
+class ActionCmdCall( fn:Function() ) : ActionCmd
+  METHODS
+    method on_start
+      fn()
+endClass
+
+
+class ActionCmdCallWithProgress( fn:Function(Real64), duration, progress_fn ) : ActionCmd
+  METHODS
+    method on_update
+      fn( progress )
+endClass
+

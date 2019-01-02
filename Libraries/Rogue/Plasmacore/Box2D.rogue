@@ -1,0 +1,883 @@
+module Box2D
+uses  Plasmacore
+
+class World
+  DEPENDENCIES
+    nativeHeader #include "Box2D/Box2D.h"
+
+    nativeHeader
+      struct RogueClassBox2D__World;
+      struct RogueClassBox2D__Fixture;
+      ROGUE_EXPORT_C void RogueBox2D__World__handle_begin_contact__Box2D__World_Box2D__Fixture_Box2D__Fixture(RogueClassBox2D__World*,RogueClassBox2D__Fixture*,RogueClassBox2D__Fixture*);
+      ROGUE_EXPORT_C void RogueBox2D__World__handle_end_contact__Box2D__World_Box2D__Fixture_Box2D__Fixture(RogueClassBox2D__World*,RogueClassBox2D__Fixture*,RogueClassBox2D__Fixture*);
+
+      class PlasmacoreContactListener : public b2ContactListener
+      {
+        public:
+          RogueClassBox2D__World* world;
+
+          PlasmacoreContactListener( RogueClassBox2D__World* world ) : world(world){}
+
+          void BeginContact( b2Contact *contact )
+          {
+            RogueBox2D__World__handle_begin_contact__Box2D__World_Box2D__Fixture_Box2D__Fixture(
+              world,
+              (RogueClassBox2D__Fixture*)contact->GetFixtureA()->GetUserData(),
+              (RogueClassBox2D__Fixture*)contact->GetFixtureB()->GetUserData()
+            );
+          }
+
+          void EndContact( b2Contact *contact )
+          {
+            RogueBox2D__World__handle_end_contact__Box2D__World_Box2D__Fixture_Box2D__Fixture(
+              world,
+              (RogueClassBox2D__Fixture*)contact->GetFixtureA()->GetUserData(),
+              (RogueClassBox2D__Fixture*)contact->GetFixtureB()->GetUserData()
+            );
+          }
+
+          void PreSolve( b2Contact *contact, const b2Manifold *oldManifold )
+          {
+          }
+
+          void PostSolve( b2Contact *contact, const b2ContactImpulse *impulse )
+          {
+          }
+      };
+    endNativeHeader
+
+  GLOBAL METHODS
+    method handle_begin_contact( world:World, a:Fixture, b:Fixture ) [essential]
+      a.on_begin_contact( b )
+      b.on_begin_contact( a )
+
+    method handle_end_contact( world:World, a:Fixture, b:Fixture ) [essential]
+      a.on_end_contact( b )
+      b.on_end_contact( a )
+
+  PROPERTIES
+    native "b2World* b2_world;"
+    native "PlasmacoreContactListener* contact_listener;"
+    velocity_iterations = 8
+    position_iterations = 3
+    pending_bodies = Body[]
+    bodies         = Body[]
+
+  METHODS
+    method init
+      init( 9.8 )
+
+    method init( gravity:Real64 )
+      init( XY(0,gravity) )
+
+    method init( gravity:XY )
+      native @|$this->b2_world = new b2World( b2Vec2((float)$gravity.x,(float)$gravity.y) );
+              |$this->contact_listener = new PlasmacoreContactListener( $this );
+              |$this->b2_world->SetContactListener( $this->contact_listener );
+
+    method add( body:Body )->Body
+      body.world = this
+      pending_bodies.add( body )
+      return body
+
+    method add( type:BodyType, position:XY, rotation=Radians(0):Radians )->Body
+      return add( Body(type,position,rotation) )
+
+    method add( type:BodyType, position:XY, rotation:Degrees )->Body
+      return add( Body(type,position,rotation->Radians) )
+
+    method add( type:BodyType, circle:Circle, rotation=Radians(0):Radians )->CircleFixture
+      return add( Body(type,circle.position,rotation) ).attach( Circle(XY(0,0),circle.radius) )
+
+    method add( type:BodyType, circle:Circle, rotation:Degrees )->CircleFixture
+      return add( type, circle, rotation->Radians )
+
+    method add( type:BodyType, box:Box, rotation=Radians(0):Radians )->QuadFixture
+      return add( Body(type,box.center,rotation) ).attach( Box(-box.size/2,box.size) )
+
+    method add( type:BodyType, box:Box, rotation:Degrees )->QuadFixture
+      return add( type, box, rotation->Radians )
+
+    method add( type:BodyType, line:Line )->LineFixture
+      return add( Body(type,line.at(0.5),Radians(0)) ).attach( line - line.at(0.5) )
+
+    method add( type:BodyType, quad:Quad )->QuadFixture
+      return add( Body(type,quad.centroid,Radians(0)) ).attach( quad - quad.centroid )
+
+    method add( type:BodyType, triangle:Triangle )->TriangleFixture
+      return add( Body(type,triangle.centroid,Radians(0)) ).attach( triangle - triangle.centroid )
+
+    method destroy
+      native @|if ($this->b2_world)
+              |{
+              |  delete $this->b2_world;
+              |  $this->b2_world = 0;
+              |  delete $this->contact_listener;
+              |  $this->contact_listener = 0;
+              |}
+
+    method gravity->XY
+      local x, y : Real64
+      native @|b2Vec2 g = $this->b2_world->GetGravity();
+              |$x = g.x;
+              |$y = g.y;
+      return XY(x,y)
+
+    method on_cleanup
+      destroy
+
+    method set_gravity( g:Real64 )->this
+      return set_gravity( XY(0,g) )
+
+    method set_gravity( g:XY )->this
+      native @|$this->b2_world->SetGravity( b2Vec2((float)$g.x,(float)$g.y) );
+      return this
+
+    method shift( offset:XY )->this
+      # Adjusts the origin to shift the entire world.
+      native @|if ($this->b2_world)
+              |{
+              |  $this->b2_world->ShiftOrigin( b2Vec2((float)-$offset.x,(float)-$offset.y) );
+              |}
+      return this
+
+    method update
+      forEach (body in pending_bodies)
+        body.spawn
+        bodies.add( body )
+      endForEach
+      pending_bodies.clear
+
+      local any_destroyed = false
+      forEach (body in bodies)
+        if (body.should_destroy) body._destroy; any_destroyed = true
+      endForEach
+      if (any_destroyed) bodies.discard( $.should_destroy )
+
+      local time_step = Real32(1) / Display.updates_per_second
+      native @|if ($this->b2_world)
+              |{
+              |  $this->b2_world->Step( $time_step, $velocity_iterations, $position_iterations );
+              |}
+
+      (forEach in bodies).update
+
+endClass
+
+enum BodyType
+  CATEGORIES
+    STATIC
+    DYNAMIC
+    KINEMATIC
+endEnum
+
+class Body
+  PROPERTIES
+    world          : World
+    should_destroy : Logical
+    fixtures       = Fixture[]
+    owner          : Object
+    native "b2BodyDef b2_body_def;"
+    native "b2Body*   b2_body;"
+
+  GLOBAL METHODS
+    method dynamic( position:XY, rotation=Radians(0):Radians )->Body
+      return Body( BodyType.DYNAMIC, position, rotation )
+
+    method dynamic( position:XY, rotation:Degrees )->Body
+      return Body( BodyType.DYNAMIC, position, rotation->Radians )
+
+    method static( position:XY, rotation=Radians(0):Radians )->Body
+      return Body( BodyType.STATIC, position, rotation )
+
+    method static( position:XY, rotation:Degrees )->Body
+      return Body( BodyType.STATIC, position, rotation->Radians )
+
+  METHODS
+    method init( _type:BodyType, _position:XY, _rotation:Radians )
+
+      # Set up body def defaults
+      native @|b2BodyDef defaults;
+              |memcpy( &$this->b2_body_def, &defaults, sizeof(b2BodyDef) );
+              |$this->b2_body_def.userData = $this;
+
+      type = _type
+      position = _position
+      rotation = _rotation
+
+    method init( _type:BodyType, _position:XY, _rotation:Degrees )
+      init( _type, _position, _rotation->Radians )
+
+    method attach( circle:Circle )->CircleFixture
+      local fixture = CircleFixture( this, circle )
+      fixtures.add( fixture )
+      if (native("!!$this->b2_body")->Logical) fixture.spawn
+      return fixture
+
+    method attach( box:Box, rotation=Radians(0):Radians )->QuadFixture
+      local fixture = QuadFixture( this, box, rotation )
+      fixtures.add( fixture )
+      if (native("!!$this->b2_body")->Logical) fixture.spawn
+      return fixture
+
+    method attach( line:Line )->LineFixture
+      local fixture = LineFixture( this, line )
+      fixtures.add( fixture )
+      if (native("!!$this->b2_body")->Logical) fixture.spawn
+      return fixture
+
+    method attach( quad:Quad )->QuadFixture
+      local fixture = QuadFixture( this, quad )
+      fixtures.add( fixture )
+      if (native("!!$this->b2_body")->Logical) fixture.spawn
+      return fixture
+
+    method attach( triangle:Triangle )->TriangleFixture
+      local fixture = TriangleFixture( this, triangle )
+      fixtures.add( fixture )
+      if (native("!!$this->b2_body")->Logical) fixture.spawn
+      return fixture
+
+    method allow_sleep->Logical
+      native @|if ($this->b2_body)
+              |{
+              |  return $this->b2_body->GetAllowSleep();
+              |}
+              |else
+              |{
+              |  return $this->b2_body_def.allowSleep;
+              |}
+
+    method destroy
+      should_destroy = true
+
+    method _destroy
+      if (should_destroy)
+        native @|if ($this->b2_body)
+                |{
+                |  $this->world->b2_world->DestroyBody( $this->b2_body );
+                |  $this->b2_body = 0;
+                |}
+        return
+      endIf
+
+    method exists->Logical
+      return native( "($this->b2_body != 0)" )->Logical
+
+    method gravity_scale->Real64
+      native @|if ($this->b2_body)
+              |{
+              |  return $this->b2_body->GetGravityScale();
+              |}
+              |else
+              |{
+              |  return $this->b2_body_def.gravityScale;
+              |}
+
+    method is_active->Logical
+      native @|if ($this->b2_body)
+              |{
+              |  return $this->b2_body->GetActive();
+              |}
+              |else
+              |{
+              |  return $this->b2_body_def.active;
+              |}
+
+    method is_awake->Logical
+      native @|if ($this->b2_body)
+              |{
+              |  return $this->b2_body->GetAwake();
+              |}
+              |else
+              |{
+              |  return $this->b2_body_def.awake;
+              |}
+
+    method is_bullet->Logical
+      native @|if ($this->b2_body)
+              |{
+              |  return $this->b2_body->GetBullet();
+              |}
+              |else
+              |{
+              |  return $this->b2_body_def.bullet;
+              |}
+
+    method position->XY
+      local x, y : Real64
+      native @|if ($this->b2_body)
+              |{
+              |  b2Vec2 v = $this->b2_body->GetPosition();
+              |  $x = v.x;
+              |  $y = v.y;
+              |}
+              |else
+              |{
+              |  $x = $this->b2_body_def.position.x;
+              |  $y = $this->b2_body_def.position.y;
+              |}
+      return XY(x,y)
+
+    method prevent_rotation->Logical
+      native @|if ($this->b2_body)
+              |{
+              |  return $this->b2_body->GetFixedRotation();
+              |}
+              |else
+              |{
+              |  return $this->b2_body_def.fixedRotation;
+              |}
+
+    method rotation->Radians
+      local value : Real64
+      native @|if ($this->b2_body)
+              |{
+              |  $value = $this->b2_body->GetAngle();
+              |}
+              |else
+              |{
+              |  $value = $this->b2_body_def.angle;
+              |}
+      return Radians( value )
+
+    method rotation_damping->Real64
+      native @|if ($this->b2_body)
+              |{
+              |  return $this->b2_body->GetAngularDamping();
+              |}
+              |else
+              |{
+              |  return $this->b2_body_def.angularDamping;
+              |}
+
+    method rotation_velocity->Radians
+      local value : Real64
+      native @|if ($this->b2_body)
+              |{
+              |  $value = $this->b2_body->GetAngularVelocity();
+              |}
+              |else
+              |{
+              |  $value = $this->b2_body_def.angularVelocity;
+              |}
+      return Radians( value )
+
+    method set_allow_sleep( new_allow_sleep:Logical )->this
+      native @|if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetAllowSleep( $new_allow_sleep );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.allowSleep = $new_allow_sleep;
+              |}
+      return this
+
+    method set_gravity_scale( new_gravity_scale:Real64 )->this
+      native @|if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetGravityScale( (float) $new_gravity_scale );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.gravityScale = (float) $new_gravity_scale;
+              |}
+      return this
+
+    method set_is_active( new_is_active:Logical )->this
+      native @|if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetActive( $new_is_active );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.active = $new_is_active;
+              |}
+      return this
+
+    method set_is_awake( new_is_awake:Logical )->this
+      native @|if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetAwake( $new_is_awake );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.awake = $new_is_awake;
+              |}
+      return this
+
+    method set_is_bullet( new_is_bullet:Logical )->this
+      native @|if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetBullet( $new_is_bullet );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.bullet = $new_is_bullet;
+              |}
+      return this
+
+    method set_owner( @owner )->this
+      return this
+
+    method set_position( new_position:XY )->this
+      native @|float x = (float) $new_position.x;
+              |float y = (float) $new_position.y;
+              |if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetTransform( b2Vec2(x,y), $this->b2_body->GetAngle() );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.position.x = x;
+              |  $this->b2_body_def.position.y = y;
+              |}
+      return this
+
+    method set_prevent_rotation( new_prevent_rotation:Logical )->this
+      native @|if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetFixedRotation( $new_prevent_rotation );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.fixedRotation = $new_prevent_rotation;
+              |}
+      return this
+
+    method set_rotation( new_rotation:Radians )->this
+      native @|if ($this->b2_body)
+              |{
+              |  b2Vec2 pos = $this->b2_body->GetPosition();
+              |  $this->b2_body->SetTransform( pos, (float) $new_rotation.value );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.angle = (float) $new_rotation.value;
+              |}
+      return this
+
+    method set_rotation_damping( new_rotation_damping:Real64 )->this
+      native @|if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetAngularDamping( (float) $new_rotation_damping );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.angularDamping = (float) $new_rotation_damping;
+              |}
+      return this
+
+    method set_rotation_velocity( new_rotation_velocity:Radians )->this
+      native @|if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetAngularVelocity( (float) $new_rotation_velocity.value );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.angularVelocity = (float) $new_rotation_velocity.value;
+              |}
+      return this
+
+    method set_type( new_type:BodyType )->this
+      native @|b2BodyType type;
+              |switch ($new_type.value)
+              |{
+              |  case 1:  type = b2_dynamicBody; break;
+              |  case 2:  type = b2_kinematicBody; break;
+              |  default: type = b2_staticBody; break;
+              |}
+              |
+              |if ($this->b2_body) $this->b2_body->SetType( type );
+              |else                $this->b2_body_def.type = type;
+
+      return this
+
+    method set_velocity( new_linear_velocity:XY )->this
+      native @|float x = (float) $new_linear_velocity.x;
+              |float y = (float) $new_linear_velocity.y;
+              |if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetLinearVelocity( b2Vec2(x,y) );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.linearVelocity.x = x;
+              |  $this->b2_body_def.linearVelocity.y = y;
+              |}
+      return this
+
+    method set_velocity_damping( new_linear_damping:Real64 )->this
+      native @|if ($this->b2_body)
+              |{
+              |  $this->b2_body->SetLinearDamping( (float) $new_linear_damping );
+              |}
+              |else
+              |{
+              |  $this->b2_body_def.linearDamping = (float) $new_linear_damping;
+              |}
+      return this
+
+
+    method velocity->XY
+      local x, y : Real64
+      native @|if ($this->b2_body)
+              |{
+              |  b2Vec2 v = $this->b2_body->GetLinearVelocity();
+              |  $x = v.x;
+              |  $y = v.y;
+              |}
+              |else
+              |{
+              |  $x = $this->b2_body_def.linearVelocity.x;
+              |  $y = $this->b2_body_def.linearVelocity.y;
+              |}
+      return XY(x,y)
+
+    method velocity_damping->Real64
+      native @|if ($this->b2_body)
+              |{
+              |  return $this->b2_body->GetLinearDamping();
+              |}
+              |else
+              |{
+              |  return $this->b2_body_def.linearDamping;
+              |}
+
+
+    method spawn
+      if (should_destroy) return
+      native @|$this->b2_body = $this->world->b2_world->CreateBody( &$this->b2_body_def );
+      (forEach in fixtures).spawn
+
+    method type->BodyType
+      local value : Int32
+      native @|b2BodyType type;
+              |if ($this->b2_body) type = $this->b2_body->GetType();
+              |else                type = $this->b2_body_def.type;
+              |switch (type)
+              |{
+              |  case b2_dynamicBody:   $value = 1; break;
+              |  case b2_kinematicBody: $value = 2; break;
+              |  default:               $value = 0; break;
+              |}
+      return BodyType( value )
+
+    method update
+
+endClass
+
+
+class CollisionFilter( category:Int32, collision_mask:Int32, override_flag=0:Int32 ) [compound]
+  # category should be (1:<<:0) up to (1:<<:15)
+  # collision_mask can be any 16-bit categories
+  DEFINITIONS
+    ALWAYS   = CollisionFilter( 0, 0,  1 )
+    NEVER    = CollisionFilter( 0, 0, -1 )
+
+  METHODS
+    method to->String
+      return "($,$,$)" (category->String(&hex).rightmost(4),collision_mask->String(&hex).rightmost(4),override_flag)
+endClass
+
+
+class Fixture [abstract]
+  PROPERTIES
+    body : Body
+    native "b2FixtureDef b2_fixture_def;"
+    native "b2Fixture*   b2_fixture;"
+
+    on_begin_contact_handler : Function(Fixture)
+    on_end_contact_handler   : Function(Fixture)
+
+  METHODS
+    method init
+      # Copy defaults
+      native @|b2FixtureDef defaults;
+              |memcpy( (void*)&$this->b2_fixture_def, (void*)&defaults, sizeof(b2FixtureDef) );
+              |$this->b2_fixture_def.userData = $this;
+
+    method init( body, circle:Circle )
+      init
+      native @|$this->b2_circle_shape.m_p.Set( (float)$circle.position.x, (float)$circle.position.y );
+              |$this->b2_circle_shape.m_radius = (float) $circle.radius;
+              |$this->b2_fixture_def.shape = &$this->b2_circle_shape;
+
+    method destroy
+      body.destroy
+
+    method bounce->Real64
+      native @|if ($this->b2_fixture)
+              |{
+              |  return $this->b2_fixture->GetRestitution();
+              |}
+              |else
+              |{
+              |  return $this->b2_fixture_def.restitution;
+              |}
+
+    method collision_filter()->CollisionFilter
+      local category, collision_mask, override_flag : Int32
+      native @|b2Filter filter;
+              |if ($this->b2_fixture)
+              |{
+              |  filter = $this->b2_fixture->GetFilterData();
+              |}
+              |else
+              |{
+              |  filter = $this->b2_fixture_def.filter;
+              |}
+              |$category = filter.categoryBits;
+              |$collision_mask = filter.maskBits;
+              |$override_flag = filter.groupIndex;
+      return CollisionFilter( category, collision_mask, override_flag )
+
+    method density->Real64
+      native @|if ($this->b2_fixture)
+              |{
+              |  return $this->b2_fixture->GetDensity();
+              |}
+              |else
+              |{
+              |  return $this->b2_fixture_def.density;
+              |}
+
+    method friction->Real64
+      native @|if ($this->b2_fixture)
+              |{
+              |  return $this->b2_fixture->GetFriction();
+              |}
+              |else
+              |{
+              |  return $this->b2_fixture_def.friction;
+              |}
+
+    method is_sensor->Logical
+      native @|if ($this->b2_fixture)
+              |{
+              |  return $this->b2_fixture->IsSensor();
+              |}
+              |else
+              |{
+              |  return $this->b2_fixture_def.sensor;
+              |}
+
+    method on_begin_contact( on_begin_contact_handler )->this
+      return this
+
+    method on_begin_contact( other:Fixture )
+      if (on_begin_contact_handler) on_begin_contact_handler( other )
+
+    method on_end_contact( on_end_contact_handler )->this
+      return this
+
+    method on_end_contact( other:Fixture )
+      if (on_end_contact_handler) on_end_contact_handler( other )
+
+    method owner->Object
+      if (not body) return null
+      return body.owner
+
+    method set_bounce( new_bounce:Real64 )->this
+      native @|if ($this->b2_fixture)
+              |{
+              |  $this->b2_fixture->SetRestitution( (float) $new_bounce );
+              |}
+              |else
+              |{
+              |  $this->b2_fixture_def.restitution = (float) $new_bounce;
+              |}
+      return this
+
+    method set_collision_filter( new_filter:CollisionFilter )->this
+      native @|b2Filter filter;
+              |filter.categoryBits = (uint16) $new_filter.category;
+              |filter.maskBits = (uint16) $new_filter.collision_mask;
+              |filter.groupIndex = (int16) $new_filter.override_flag;
+              |if ($this->b2_fixture)
+              |{
+              |  $this->b2_fixture->SetFilterData( filter );
+              |}
+              |else
+              |{
+              |  $this->b2_fixture_def.filter = filter;
+              |}
+      return this
+
+    method set_density( new_density:Real64 )->this
+      native @|if ($this->b2_fixture)
+              |{
+              |  $this->b2_fixture->SetDensity( (float) $new_density );
+              |}
+              |else
+              |{
+              |  $this->b2_fixture_def.density = (float) $new_density;
+              |}
+      return this
+
+    method set_friction( new_friction:Real64 )->this
+      native @|if ($this->b2_fixture)
+              |{
+              |  $this->b2_fixture->SetFriction( (float) $new_friction );
+              |}
+              |else
+              |{
+              |  $this->b2_fixture_def.friction = (float) $new_friction;
+              |}
+      return this
+
+    method set_is_sensor( new_setting:Logical )->this
+      native @|if ($this->b2_fixture)
+              |{
+              |  $this->b2_fixture->SetSensor( $new_setting );
+              |}
+              |else
+              |{
+              |  $this->b2_fixture_def.sensor = (float) $new_setting;
+              |}
+      return this
+
+    method set_owner( _owner:Object )->this
+      if (body) body.owner = _owner
+      return this
+
+    method spawn
+      native @|if ( !$this->b2_fixture )
+              |{
+              |  $this->b2_fixture = $body->b2_body->CreateFixture( &$this->b2_fixture_def );
+              |}
+
+endClass
+
+
+class LineFixture : Fixture
+  PROPERTIES
+    native "b2EdgeShape b2_shape;"
+    line : Line
+
+  METHODS
+    method init( body, line )
+      prior.init
+      native @|// Copy defaults
+              |b2EdgeShape defaults;
+              |memcpy( (void*)&$this->b2_shape, (void*)&defaults, sizeof(b2EdgeShape) );
+              |$this->b2_shape.Set( b2Vec2($line.a.x,$line.a.y), b2Vec2($line.b.x,$line.b.y) );
+              |$this->b2_fixture_def.shape = &$this->b2_shape;
+
+    method draw( color:Color )
+      line.draw( color )
+
+    method line->Line
+      return @line.rotated(body.rotation) + body.position
+
+    method to->Line [macro]
+      return this.line
+endClass
+
+
+class CircleFixture : Fixture
+  PROPERTIES
+    native "b2CircleShape b2_shape;"
+    circle : Circle
+
+  METHODS
+    method init( body, circle )
+      prior.init
+      native @|// Copy defaults
+              |b2CircleShape defaults;
+              |memcpy( (void*)&$this->b2_shape, (void*)&defaults, sizeof(b2CircleShape) );
+              |$this->b2_fixture_def.shape = &$this->b2_shape;
+              |$this->b2_shape.m_p.Set( (float)$circle.position.x, (float)$circle.position.y );
+              |$this->b2_shape.m_radius = (float) $circle.radius;
+
+    method circle->Circle
+      return Circle( @circle.position.rotated( body.rotation ) + body.position, @circle.radius )
+
+    method draw( color:Color )
+      circle.draw( color )
+
+    method fill( color:Color )
+      circle.fill( color )
+
+    method to->Circle [macro]
+      return this.circle
+
+endClass
+
+
+class QuadFixture : Fixture
+  PROPERTIES
+    native "b2Vec2         b2_vertices[4];"
+    native "b2PolygonShape b2_shape;"
+    quad : Quad
+
+  METHODS
+    method init( body, box:Box, rotation=Radians(0):Radians )
+      init( body, Box(-box.size/2, box.size).rotated(rotation) + box.position + box.size/2 )
+
+    method init( body, quad )
+      prior.init
+      native @|// Copy defaults
+              |b2PolygonShape defaults;
+              |memcpy( (void*)&$this->b2_shape, (void*)&defaults, sizeof(b2PolygonShape) );
+              |$this->b2_vertices[0].x = (float) $quad.a.x;  // place in CC order
+              |$this->b2_vertices[0].y = (float) $quad.a.y;
+              |$this->b2_vertices[1].x = (float) $quad.d.x;
+              |$this->b2_vertices[1].y = (float) $quad.d.y;
+              |$this->b2_vertices[2].x = (float) $quad.c.x;
+              |$this->b2_vertices[2].y = (float) $quad.c.y;
+              |$this->b2_vertices[3].x = (float) $quad.b.x;
+              |$this->b2_vertices[3].y = (float) $quad.b.y;
+              |$this->b2_shape.Set( $this->b2_vertices, 4 );
+              |$this->b2_fixture_def.shape = &$this->b2_shape;
+
+    method draw( color:Color )
+      quad.draw( color )
+
+    method fill( color:Color )
+      quad.fill( color )
+
+    method quad->Quad
+      return (@quad.rotated(body.rotation) + body.position)
+
+    method to->Quad [macro]
+      return this.quad
+
+endClass
+
+class TriangleFixture : Fixture
+  PROPERTIES
+    native "b2Vec2         b2_vertices[3];"
+    native "b2PolygonShape b2_shape;"
+    triangle : Triangle
+
+  METHODS
+    method init( body, triangle )
+      prior.init
+      native @|// Copy defaults
+              |b2PolygonShape defaults;
+              |memcpy( (void*)&$this->b2_shape, (void*)&defaults, sizeof(b2PolygonShape) );
+              |$this->b2_vertices[0].x = (float) $triangle.a.x;  // place in CC order
+              |$this->b2_vertices[0].y = (float) $triangle.a.y;
+              |$this->b2_vertices[1].x = (float) $triangle.c.x;
+              |$this->b2_vertices[1].y = (float) $triangle.c.y;
+              |$this->b2_vertices[2].x = (float) $triangle.b.x;
+              |$this->b2_vertices[2].y = (float) $triangle.b.y;
+              |$this->b2_shape.Set( $this->b2_vertices, 3 );
+              |$this->b2_fixture_def.shape = &$this->b2_shape;
+
+    method draw( color:Color )
+      triangle.draw( color )
+
+    method fill( color:Color )
+      triangle.fill( color )
+
+    method triangle->Triangle
+      return (@triangle.rotated(body.rotation) + body.position)
+
+    method to->Triangle [macro]
+      return this.triangle
+
+endClass
+

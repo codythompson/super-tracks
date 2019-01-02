@@ -1,0 +1,387 @@
+module Plasmacore
+
+class Screen
+  PROPERTIES
+    state                 = State(this)
+    layers                = Layer[]
+
+    display               : Display
+    is_active             : Logical
+    needs_first_update    = true
+    previous_display_size : XY?
+
+    loaded_asset_count    : Int32
+    total_asset_count     : Int32
+
+    lighting : Lighting
+    # 3D lighting model
+
+    actions  : ActionCmd
+
+  METHODS
+    method add( layer:Layer )->this
+      layers.add( layer )
+      return this
+
+    method after( e:KeyEvent )
+
+    method after( e:PointerEvent )
+
+    method after( e:ScrollEvent )
+
+    method after( e:TextEvent )
+
+    method after_draw
+
+    method after_resize
+
+    method after_update
+
+    method change_state( new_state:State )
+      local cur = new_state
+      while (cur.next_state) cur = cur.next_state
+      cur.next_state = state.next_state
+      state.next_state = null
+      new_state.prior_state = state.prior_state
+
+      new_state.on_prepare
+      state.on_finish
+      state.is_active = false
+      @state = new_state
+      state.screen = this
+      state.is_active = true
+      state.on_start
+
+    method change_screen( new_screen:Screen )
+      new_screen.display = display
+      new_screen.on_prepare
+      forEach (layer in new_screen.layers)
+        if (layer.is_visible) layer.on_prepare
+      endForEach
+      this.on_finish
+      forEach (layer in new_screen.layers)
+        if (layer.is_visible) layer.on_finish
+      endForEach
+      this.is_active = false
+      display.screen.mark_images_unused
+      display.screen = new_screen
+
+    method collect_texture_names( texture_names=null:StringTable<<Logical>> )->String[]
+      ensure texture_names
+      collect_texture_names( this, texture_names )
+      collect_texture_names( (forEach in layers), texture_names )
+      return texture_names.keys
+
+    method collect_texture_names( obj:Object, texture_names:StringTable<<Logical>> )->String[]
+      local type_Image = <<Plasmacore::Image>>
+      local type_ImageList = <<Plasmacore::Image[]>>
+      local type_Font = <<Plasmacore::Font>>
+
+      local introspector = obj.introspector
+
+      forEach (p in obj.type_info.properties)
+        if (p.type.instance_of(type_Image))
+          local image = introspector[ p.name ].to<<Image>>
+          if (image) image.collect_texture_names( texture_names )
+
+        elseIf (p.type.instance_of(type_ImageList))
+          local images = introspector[ p.name ].to<<Image[]>>
+          if (images) images.collect_texture_names( texture_names )
+
+        elseIf (p.type.instance_of(type_Font))
+          local font = introspector[ p.name ].to<<Font>>
+          if (font) font.collect_texture_names( texture_names )
+        endIf
+
+      endForEach
+
+      return texture_names.keys
+
+    method collect_textures->Texture[]
+      local textures = Texture[]
+      forEach (name in collect_texture_names)
+        local texture = Display.textures_by_name[ name ]
+        if (texture and not textures.contains(texture)) textures.add( texture )
+      endForEach
+      return textures
+
+    method exit_state
+      local new_state : State
+      if (state.next_state)
+        new_state = state.next_state
+      elseIf (state.prior_state)
+        new_state = state.prior_state
+      else
+        new_state = State()
+      endIf
+
+      new_state.screen = this
+      new_state.on_prepare
+
+      state.on_finish
+      state.is_active = false
+
+      new_state.is_active = true
+
+      if (state.next_state)
+        new_state.prior_state = state.prior_state
+        @state = new_state
+        state.on_start
+      elseIf (state.prior_state)
+        @state = new_state
+        state.on_resume
+      else
+        state.on_start
+      endIf
+
+    method handle( e:KeyEvent )
+      on( e )
+      if (e.is_consumed) return
+
+      if (layers.count)
+        forEach (layer in layers step -1)
+          if (layer.is_visible)
+            layer.on( e )
+            if (e.is_consumed) return
+          endIf
+        endForEach
+      endIf
+
+      after( e )
+
+    method handle( e:PointerEvent )
+      on( e )
+      if (e.is_consumed) return
+
+      if (layers.count)
+        forEach (layer in layers step -1)
+          if (layer.is_visible)
+            layer.on( e )
+            if (e.is_consumed) return
+          endIf
+        endForEach
+      endIf
+
+      after( e )
+
+    method handle( e:ScrollEvent )
+      on( e )
+      if (e.is_consumed) return
+
+      if (layers.count)
+        forEach (layer in layers step -1)
+          if (layer.is_visible)
+            layer.on( e )
+            if (e.is_consumed) return
+          endIf
+        endForEach
+      endIf
+
+      after( e )
+
+    method handle( e:TextEvent )
+      on( e )
+      if (e.is_consumed) return
+
+      if (layers.count)
+        forEach (layer in layers step -1)
+          if (layer.is_visible)
+            layer.on( e )
+            if (e.is_consumed) return
+          endIf
+        endForEach
+      endIf
+
+      after( e )
+
+    method handle_draw
+      on_draw
+      if (layers.count)
+        forEach (layer in layers)
+          if (layer.is_visible) layer.on_draw
+        endForEach
+      endIf
+      after_draw
+
+    method handle_resize
+      on_resize
+      if (layers.count)
+        forEach (layer in layers)
+          if (layer.is_visible) layer.on_resize
+        endForEach
+      endIf
+      after_resize
+
+    method handle_update
+      if (actions) actions = actions.update
+      on_update
+      if (layers.count)
+        forEach (layer in layers)
+          if (layer.actions) layer.actions = layer.actions.update
+          if (layer.is_visible) layer.on_update
+        endForEach
+      endIf
+      after_update
+
+    method lighting->Lighting
+      return (ensure @lighting)
+
+    method load_another_asset->Real64
+      if (loaded_asset_count and loaded_asset_count == total_asset_count) return 1.0
+
+      local introspector = this.introspector
+
+      loaded_asset_count = 0
+      total_asset_count = 0
+      forEach (p in type_info.properties)
+        if (p.type.is_reference)
+          local assets = introspector[ p.name ].to<<Assets>>
+          if (assets)
+            if (not assets.finished_loading) assets.load_another
+            loaded_asset_count += assets.loaded_asset_count
+            total_asset_count += assets.total_asset_count
+          endIf
+        endIf
+      endForEach
+
+      if (total_asset_count == 0) return 1.0
+
+      return loaded_asset_count / Real64(total_asset_count)
+
+    method load_assets
+      local progress = 0.0
+      while (progress < 1.0)
+        progress = load_another_asset
+        Log.println "Loading assets $/$ ($%)" (loaded_asset_count,total_asset_count,(progress*100).format(0))
+      endWhile
+
+    method load_images
+
+      # Image textures that were loaded in the old screen have already been marked should_unload.
+      # Unmark the ones we'll be using for this screen
+      local texture_names = collect_texture_names
+      forEach (name in texture_names)
+        local texture = Display.textures_by_name[ name ]
+        if (texture) texture.should_unload = false
+      endForEach
+
+      # Unload the old textures that are still marked as should_unload
+      forEach (texture in Display.texture_list.cloned())
+        if (texture.should_unload) texture.unload
+      endForEach
+
+      forEach (name in texture_names) Texture( name )
+
+    method mark_images_unused
+      (forEach in collect_textures).should_unload = true
+      mark_fonts_unloaded( this )
+      mark_fonts_unloaded( forEach in layers )
+
+    method mark_fonts_unloaded( obj:Object )
+      local type_Font = <<Plasmacore::Font>>
+      local introspector = obj.introspector
+      forEach (p in obj.type_info.properties)
+
+        if (p.type.instance_of(type_Font))
+          local font = introspector[ p.name ].to<<Font>>
+          if (font and font.data) font.data.is_loaded = false
+
+        endIf
+      endForEach
+
+    method on( e:KeyEvent )
+
+    method on( e:PointerEvent )
+
+    method on( e:ScrollEvent )
+
+    method on( e:TextEvent )
+
+    method on_draw
+
+    method on_finish
+
+    method on_prepare
+
+    method on_resize
+
+    method on_start
+
+    method on_update
+
+    method push_state( new_state:State )
+      new_state.prior_state = state
+      state.is_active = false
+      state.on_suspend
+      @state = new_state
+      state.screen = this
+      state.is_active = true
+      state.on_start
+
+    method queue_state( new_state:State )
+      local cur = state
+      while (cur.next_state) cur = cur.next_state
+      cur.next_state = new_state
+
+    method reload_images( &keep_unused_textures )
+      # Collect texture names before reloading
+      local texture_name_set = StringTable<<Logical>>()
+      local texture_names = collect_texture_names( texture_name_set )
+      texture_name_set[ forEach in texture_names ] = false
+
+      reload_images( this )
+      reload_images( (forEach in layers) )
+
+      # Update used textures
+      texture_names = collect_texture_names( texture_name_set )
+
+      # Unload unused textures
+      if (not keep_unused_textures)
+        forEach (name in texture_names)
+          local entry = texture_name_set.find( name )
+          if (entry and not entry.value)
+            local texture = Display.textures_by_name[ entry.key ]
+            if (texture)
+              texture.unload
+            endIf
+          endIf
+        endForEach
+      endIf
+
+      # Load new textures
+      forEach (name in texture_names)
+        local entry = texture_name_set.find( name )
+        if (entry and entry.value) Texture( entry.key ).load
+      endForEach
+
+    method reload_images( obj:Object )
+      # Reload each image
+      local type_Image = <<Plasmacore::Image>>
+      local type_ImageList = <<Plasmacore::Image[]>>
+      local type_Font = <<Plasmacore::Font>>
+
+      local introspector = obj.introspector
+
+      forEach (p in obj.type_info.properties)
+
+        if (p.type.instance_of(type_Image))
+          local image = introspector[ p.name ].to<<Image>>
+          if (image) image.reload
+
+        elseIf (p.type.instance_of(type_ImageList))
+          local images = introspector[ p.name ].to<<Image[]>>
+          if (images) images.reload
+
+        elseIf (p.type.instance_of(type_Font))
+          local font = introspector[ p.name ].to<<Font>>
+          if (font) font.reload
+
+        endIf
+      endForEach
+
+    method set_state( new_state:State )->this
+      change_state( new_state )
+      return this
+
+endClass
+

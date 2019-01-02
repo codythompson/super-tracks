@@ -1,0 +1,657 @@
+$define PLASMACORE_VERSION "0.9.2 (1)"
+
+#$ DEPENDENCIES     = Libraries/Rogue/AssetCompiler/*.rogue
+
+#$ ROGUEC(macOS)    = Programs/RogueC-macOS
+#$ ROGUEC(Linux)    = roguec
+#$ ROGUEC_ARGS      = --libraries=Libraries/Rogue
+
+#$ LIBRARIES(macOS) = sox(install:"sox --with-libvorbis") libpng libjpeg(header:jpeglib.h)
+#$ LIBRARIES(macOS) = freetype(header:"ft2build.h")
+
+#$ LIBRARIES(Linux) = libsdl2-dev libsdl2-mixer-dev
+#$ LIBRARIES(Linux) = libfreetype6-dev( header:ft2build.h library:libfreetype.a )
+#$ LIBRARIES(Linux) = libpng12-dev libjpeg-dev
+
+#$ LINK             = -lpng -ljpeg -lfreetype
+
+$include "Plasmacore" [optional]
+uses Plasmacore
+
+$include "AssetCompiler" [optional]
+
+help( "default", &syntax="", "Prints list of commands." )
+routine rogo_default
+  rogo_help
+endRoutine
+
+routine rogo_android
+  Build.build( "Android" )
+endRoutine
+
+routine rogo_ios
+  Build.build( "iOS" )
+endRoutine
+
+routine rogo_macos
+  Build.build( "macOS" )
+endRoutine
+
+routine rogo_linux
+  Build.build( "Linux" )
+  run @|make -C Platforms/Linux
+endRoutine
+
+routine rogo_clean
+  println "Deleting Build/"
+  File.delete( "Build" )
+endRoutine
+
+routine rogo_xclean
+  rogo_clean
+  println "Deleting .rogo/"
+  File.delete( ".rogo" )
+endRoutine
+
+routine rogo_version( text="Updated to":String )
+  print( text ).print( " Plasmacore v" ).println( PLASMACORE_VERSION )
+endRoutine
+
+routine rogo_update
+  println "Checking for Plasmacore update"
+  Build.git_pull
+  local update_version = PLASMACORE_VERSION
+  contingent
+    local filepath = "Build/Update/Plasmacore/BuildCore.rogue"
+    necessary (File.exists(filepath))
+    local def = "$define PLASMACORE_VERSION"
+    forEach (line in LineReader(File(filepath)))
+      if (line.contains(def))
+        update_version = line.after_first(def).trimmed.rightmost(-1).leftmost(-1)
+        sufficient (update_version != PLASMACORE_VERSION)
+        necessary (false)
+      endIf
+    endForEach
+
+  satisfied
+    println "Plasmacore updating..."
+    run File.fix_slashes( "rogo --build=Build/Update/Plasmacore/Bootstrap install update" )
+    println "Updated to Plasmacore v" + update_version
+
+  unsatisfied
+    println "No Plasmacore update available. Current version is v$." (PLASMACORE_VERSION)
+
+  endContingent
+endRoutine
+
+routine rogo_web
+  Build.build( "Web" )
+  run @|make -C Platforms/Web
+endRoutine
+
+help( "install_rogue", "Embeds Rogue locally to remove the dependency and freeze its version." )
+routine rogo_install_rogue
+  Build.install_rogue
+endRoutine
+
+help( "install_rogue", "Deletes the locally embedded copy of Rogue." )
+routine rogo_uninstall_rogue
+  Build.uninstall_rogue
+endRoutine
+
+help( "padfont",
+    &syntax     ="padfont [--padding=<integer>] <font_strip.png>",
+    &description="Repacks a font strip with additional transparent pixels around the border."
+  )
+routine rogo_padfont
+  PadFont()
+endRoutine
+
+help( "trimfont",
+    &syntax     ="trimfont [--padding=<integer>] <font_strip.png>",
+    &description="Repacks a font strip after removing UP TO 'padding' number of pixels around each character."
+  )
+routine rogo_trimfont
+  TrimFont()
+endRoutine
+
+routine run( cmd:String, &silent )
+  forEach (line in LineReader(cmd))
+    if (not silent) print( "> " ).println( line )
+    if (0 != System.run(line)) throw Error( "Build error." )
+  endForEach
+endRoutine
+
+
+class Build [essential singleton]
+  PROPERTIES
+    REPO   = "https://github.com/AbePralle/Plasmacore.git"
+    BRANCH = "master"
+    ROGUE_IDE_FLAG  = ""
+    ENV_IDE_FLAG    = ""
+    CXX             = "c++"
+    ROGUEC          = "roguec"
+    ROGUE_STD_LIBS  = "Libraries/Rogue"
+
+    ide_mode = false
+
+  METHODS
+    method init
+      if (System.environment.contains("IDE"))
+        ide_mode = true
+        ROGUE_IDE_FLAG = "--ide"
+        ENV_IDE_FLAG   = "IDE=true"
+      endIf
+
+      which (System.os)
+        case "macOS", "Linux"
+          ROGUEC = "Programs/RogueC/RogueC-" + System.os
+          forEach (line in LineReader(Process.run("make -p -f/dev/null")))
+            if (line.begins_with("CXX ="))
+              CXX = line.split("=").last.trimmed
+              escapeForEach
+            endIf
+          endForEach
+
+          if (not File.exists(ROGUE_STD_LIBS + "/Standard"))
+            local launcher_filepath = Process.run( "which roguec", &inherit_environment ).output_string.trimmed
+            if (File.exists(launcher_filepath))
+              local file_scanner = Scanner( File(launcher_filepath) )
+              while (file_scanner.has_another)
+                local line = file_scanner.read_line.trimmed
+                if (line.begins_with("exec"))
+                  local line_scanner = Scanner( line )
+                  line_scanner.scan_identifier  # exec
+                  line_scanner.consume_spaces
+                  if (line_scanner.next_is_string)
+                    ROGUE_STD_LIBS= File.folder( line_scanner.scan_string )
+                  endIf
+                  escapeWhile
+                endIf
+              endWhile
+            endIf
+          endIf
+
+        case "Windows"
+          ROGUEC = "Programs\\RogueC\\roguec.exe"
+          CXX = "cl"
+          if (not File.exists(ROGUE_STD_LIBS + "/Standard"))
+            ROGUE_STD_LIBS= File.folder( Process.run("where roguec.exe", &inherit_environment).output_string.trimmed )
+          endIf
+      endWhich
+
+      if (not File.exists(ROGUEC)) ROGUEC = "roguec"
+
+      # Read override values from Local.mk
+      if (File.exists("Local.mk"))
+        local printed_header = false
+        forEach (line in LineReader(File("Local.mk")))
+          if (line.contains("="))
+            local name  = line.before_first('=').trimmed
+            local value = line.after_first('=').trimmed
+            local p = type_info.find_property( name )
+            if (p)
+              if (not printed_header)
+                printed_header = true
+                println "Local.mk overrides:"
+              endIf
+              println "$ = $" (name,value)
+              type_info.set_property( this, p, Value(value) )
+            endIf
+          endIf
+        endForEach
+      endIf
+
+    method build( platform:String )
+      println "Build " + platform
+
+      which (platform)
+        case "Web"
+          println @|Ensure you have the latest emscripten installed and configured:
+                   |
+                   |  (Install emsdk && cd emsdk/)
+                   |  git pull   # or "./emsdk update" in some cases
+                   |  ./emsdk install  latest
+                   |  ./emsdk activate latest
+                   |  (Add emsdk paths to ~/.bash_profile)
+                   |
+      endWhich
+
+      local output_folder = File.fix_slashes( "Build/$/Source" (platform) )
+      create_folder( output_folder )
+
+      launch_asset_compiler( platform )
+
+      if (not needs_compile(platform,output_folder)) return
+
+      local target = platform + ",C++"
+      which (platform)
+        case "macOS", "iOS": target += ",ObjC"
+        case "Linux":        target += ",SDL"
+        case "Web":          target += ",SDL,emscripten"
+      endWhich
+
+      which (platform)
+        case "iOS", "Android": target += ",Mobile"
+        others:                target += ",Desktop"
+      endWhich
+
+      local cmd = ''$ --target=$ --gc=manual Source/Main.rogue Plasmacore --libraries=Libraries/Rogue --output=$/RogueProgram''...
+        (ROGUEC,target,output_folder)
+      if (Build.ide_mode) cmd += " --ide"
+      run( cmd )
+
+    method create_folder( folder:String )
+      if (File.exists(folder)) return
+      println "Creating folder " + folder
+      File.create_folder( folder )
+
+    method convert_args_to_filepaths( args:String[] )
+      # Example: Assets/**/*.png -> [files that match]
+      local wildcards = args
+      args = String[]( wildcards.count )
+      forEach (wildcard in wildcards)
+        if (File.exists(wildcard))
+          args.add( wildcard )
+        else
+          local listing = File.listing( wildcard, &files )
+          if (not listing.is_empty)
+            args.add( listing )
+          else
+            throw Error( "No files match argument pattern: " + wildcard )
+          endIf
+        endIf
+      endForEach
+
+      if (args.is_empty) throw Error( "No files match argument pattern." )
+
+      wildcards.clear.add( args )
+
+    method extract_options( args:String[] )->StringTable<<String>>
+      local options = StringTable<<String>>()
+      forEach (arg at index in args step -1)
+        if (arg.begins_with("--"))
+          args.remove_at( index )
+          local option = arg.from(2)
+          if (option.contains('='))
+            options[ option.before_first('=') ] = option.after_first( '=' )
+          else
+            options[ option ] = ""
+          endIf
+        endIf
+      endForEach
+      return options
+
+    method git_pull
+      if (not File.exists("Build/Update/Plasmacore"))
+        println File.fix_slashes( "Cloning Plasmacore -> Build/Update/Plasmacore" )
+        File.create_folder( "Build/Update" )
+        run File.fix_slashes( "git clone $ Build/Update/Plasmacore"(REPO) )
+      endIf
+      run "cd Build/Update/Plasmacore && git checkout $ && git pull" (BRANCH)
+
+    method install_rogue
+      print select{ File.exists("Libraries/Rogue/Standard"):"Updating" || "Installing" }
+      println " embedded copy of Rogue compiler."
+
+      local roguec_folder = ""
+      local roguec_exe    : String
+      which (System.os)
+        case "Windows"
+          roguec_exe = "roguec.exe"
+          roguec_folder = File.folder( Process.run( "where roguec.exe", &inherit_environment ).output_string.trimmed )
+
+        others
+          roguec_exe = "RogueC-" + System.os
+          local launcher_filepath = Process.run( "which roguec", &inherit_environment ).output_string.trimmed
+          if (File.exists(launcher_filepath))
+            local file_scanner = Scanner( File(launcher_filepath) )
+            while (file_scanner.has_another)
+              local line = file_scanner.read_line.trimmed
+              if (line.begins_with("exec"))
+                local line_scanner = Scanner( line )
+                line_scanner.scan_identifier  # exec
+                line_scanner.consume_spaces
+                if (line_scanner.next_is_string)
+                  roguec_folder = File.folder( line_scanner.scan_string )
+                endIf
+                escapeWhile
+              endIf
+            endWhile
+          endIf
+      endWhich
+
+      roguec_exe = File.join( roguec_folder, roguec_exe )
+
+      if (not File.exists(roguec_folder)) throw Error( "Can not find RogueC folder." )
+      if (not File.exists(roguec_exe))    throw Error( "Can not find $." (roguec_exe) )
+
+      File.sync_from( Files(roguec_folder,"*"), "Programs/RogueC", &verbose, &keep_unused )
+      File.sync_from( Files(roguec_folder+"/Libraries/Standard","*"), "Libraries/Rogue/Standard", &verbose )
+      File.sync_from( Files(roguec_folder+"/Libraries/ParseKit","*"), "Libraries/Rogue/ParseKit", &verbose )
+
+    method needs_compile( platform:String, output_folder:String )->Logical
+      local extension = "cpp"
+      if (platform == "macOS" or platform == "iOS") extension = "mm"
+
+      local output_h   = "$/RogueProgram.h" (output_folder)
+      local output_cpp = "$/RogueProgram.$" (output_folder,extension)
+
+      if (not File.exists(output_h))   return true
+      if (not File.exists(output_cpp)) return true
+
+      local dependencies = String[]
+      dependencies.add( File.listing(ROGUE_STD_LIBS,&recursive,&absolute) )
+      if (ROGUE_STD_LIBS != "Libraries/Rogue")
+        dependencies.add( File.listing("Libraries/Rogue",&recursive,&absolute) )
+      endIf
+      dependencies.add( File.listing("Source", &recursive, &absolute) )
+      dependencies.add( "Build.rogue" )
+      dependencies.add( "BuildCore.rogue" )
+      dependencies.add( "BuildLocal.rogue" )
+
+      local timestamp = File.timestamp(output_h).or_smaller( File.timestamp(output_cpp) )
+      forEach (dependency in dependencies)
+        if (File.timestamp(dependency) > timestamp) return true
+      endForEach
+
+      return false
+
+    method uninstall_rogue
+      println "Deleting embedded copy of Rogue language."
+      File.delete( "Programs/RogueC" )
+      File.delete( "Libraries/Rogue/Standard" )
+      File.delete( "Libraries/Rogue/ParseKit" )
+endClass
+
+
+class PadFont
+  METHODS
+    method init
+      local args = System.command_line_arguments.cloned
+      args.remove_first  # 'padfont'
+      local options = Build.extract_options( args )
+      if (options//padding is null or options//padding->Int32 == 0) options//padding = "16"
+
+      if (args.count == 0)
+        println "No files specified.\n"
+        rogo_help( "padfont" )
+      else
+        Build.convert_args_to_filepaths( args )
+        pad_font( forEach in args, options )
+      endIf
+
+    method pad_font( filepath:String, options:StringTable<<String>> )
+      local characters = extract_varfont_characters( Bitmap(File(filepath)) )
+
+      local padding = options//padding->Int32
+      (forEach in characters).crop( -padding )
+
+      println "Rewriting $ with $ pixels of padding around each character" (filepath,padding)
+      local bitmap = pack_varfont_characters( characters )
+      File.save( filepath, bitmap.to_png_bytes )
+
+    method extract_varfont_characters( bitmap:Bitmap )->Bitmap[]
+      local characters = Bitmap[]
+      local x1 = 0
+      local w  = bitmap.width
+      local char_height = bitmap.height - 1
+
+      while (x1 < w)
+        local color = bitmap.get( x1, 0 )
+        local x_limit = x1 + 1
+        while (x_limit < w and bitmap.get(x_limit,0) == color) ++x_limit
+        characters.add( Bitmap(bitmap,Box(x1,1,x_limit-x1,char_height)) )
+        x1 = x_limit
+      endWhile
+
+      return characters
+
+    method pack_varfont_characters( characters:Bitmap[] )->Bitmap
+      require characters.count
+      local total_w = 0
+      total_w += (forEach in characters).width
+      local bitmap = Bitmap( total_w, characters.first.height + 1 )
+      local color = Color.RED
+      local x = 0
+      forEach (ch in characters)
+        bitmap.fill( Box(x,0,ch.width,1), color )
+        ch.blit( bitmap, XY(x,1) )
+        if (color == Color.RED) color = Color.GREEN
+        else                    color = Color.RED
+        x += ch.width
+      endForEach
+      return bitmap
+endClass
+
+class TrimFont
+  METHODS
+    method init
+      local args = System.command_line_arguments.cloned
+      args.remove_first  # 'trimfont'
+      local options = Build.extract_options( args )
+      if (options//padding is null or options//padding->Int32 == 0) options//padding = "16"
+
+      if (args.count == 0)
+        println "No files specified.\n"
+        rogo_help( "trimfont" )
+      else
+        Build.convert_args_to_filepaths( args )
+        trim_font( forEach in args, options )
+      endIf
+
+    method trim_font( filepath:String, options:StringTable<<String>> )
+      local characters = extract_varfont_characters( Bitmap(File(filepath)) )
+
+      local padding = options//padding->Int32
+      local crop_top    = padding
+      local crop_bottom = padding
+      forEach (ch in characters)
+
+        forEach (j in 0..<crop_top)
+          if (row_contains_pixels(ch,j))
+            crop_top = j
+            escapeForEach
+          endIf
+        endForEach
+
+        forEach (j in 1..crop_bottom)
+          if (row_contains_pixels(ch,ch.height-j))
+            crop_bottom = j - 1
+            escapeForEach
+          endIf
+        endForEach
+
+      endForEach
+
+      forEach (ch in characters)
+
+        local crop_left = padding
+        forEach (i in 0..<crop_left)
+          if (column_contains_pixels(ch,i))
+            crop_left = i
+            escapeForEach
+          endIf
+        endForEach
+
+        local crop_right = padding
+        forEach (i in 1..crop_right)
+          if (column_contains_pixels(ch,ch.width-i))
+            crop_right = i - 1
+            escapeForEach
+          endIf
+        endForEach
+
+        ch.crop( crop_left, crop_top, crop_right, crop_bottom )
+
+      endForEach
+
+      println "Rewriting $, removing up to $ pixels of padding around each character" (filepath,padding)
+      local bitmap = pack_varfont_characters( characters )
+      File.save( filepath, bitmap.to_png_bytes )
+
+    method row_contains_pixels( bitmap:Bitmap, j:Int32 )->Logical
+      forEach (i in 0..<bitmap.width)
+        if (bitmap.get(i,j).alpha_byte) return true
+      endForEach
+      return false
+
+    method column_contains_pixels( bitmap:Bitmap, i:Int32 )->Logical
+      forEach (j in 0..<bitmap.height)
+        if (bitmap.get(i,j).alpha_byte) return true
+      endForEach
+      return false
+
+    method extract_varfont_characters( bitmap:Bitmap )->Bitmap[]
+      local characters = Bitmap[]
+      local x1 = 0
+      local w  = bitmap.width
+      local char_height = bitmap.height - 1
+
+      while (x1 < w)
+        local color = bitmap.get( x1, 0 )
+        local x_limit = x1 + 1
+        while (x_limit < w and bitmap.get(x_limit,0) == color) ++x_limit
+        characters.add( Bitmap(bitmap,Box(x1,1,x_limit-x1,char_height)) )
+        x1 = x_limit
+      endWhile
+
+      return characters
+
+    method pack_varfont_characters( characters:Bitmap[] )->Bitmap
+      require characters.count
+      local total_w = 0
+      total_w += (forEach in characters).width
+      local bitmap = Bitmap( total_w, characters.first.height + 1 )
+      local color = Color.RED
+      local x = 0
+      forEach (ch in characters)
+        bitmap.fill( Box(x,0,ch.width,1), color )
+        ch.blit( bitmap, XY(x,1) )
+        if (color == Color.RED) color = Color.GREEN
+        else                    color = Color.RED
+        x += ch.width
+      endForEach
+      return bitmap
+endClass
+
+
+#------------------------------------------------------------------------------
+# Introspection-based Launcher Framework
+#------------------------------------------------------------------------------
+global ::prefix = ?:{ $moduleName.count:$moduleName "::" || "" } + "rogo_" : String
+
+class CommandSyntax      : StringTable<<String>> [singleton];
+class CommandDescription : StringTable<<String>> [singleton];
+
+routine syntax( command:String, text:String )
+  CommandSyntax[ command ] = text
+endRoutine
+
+routine description( command:String, text:String )
+  CommandDescription[ command ] = text
+endRoutine
+
+routine help( command:String, description=null:String, syntax=null:String )
+  if (description) Global.description( command, description )
+  if (syntax)      Global.syntax( command, syntax )
+endRoutine
+
+local cmd = System.command_line_arguments.cloned
+try
+  if (cmd.count)
+    local args = String[]
+    while (cmd.count)
+      if (dispatch(cmd,args)) System.exit
+      args.insert( cmd.remove_last )
+    endWhile
+    println "ERROR: No such command '$'." (args.first)
+    println
+    rogo_help
+  else
+    rogo_default
+  endIf
+catch (err:Error)
+  Console.error.println err
+  System.exit 1
+endTry
+
+routine dispatch( cmd:String[], string_args:String[] )->Logical
+  local m = <<Global>>.find_method( prefix + cmd.join("_") )
+  if (not m) return false
+
+  local args = @[]
+  forEach (arg in string_args)
+    which (arg)
+      case "true":  args.add( true )
+      case "false": args.add( false )
+      case "null":  args.add( NullValue )
+      others:       args.add( arg )
+    endWhich
+  endForEach
+  if (m.parameter_count == 1 and args.count > 1) args = @[ args ] # Wrap args in a ValueList.
+  m.call( Global, args )
+  return true
+endRoutine
+
+routine rogo_help( command="":String )
+  local args = System.command_line_arguments.cloned
+  if (args.count) args.remove_first
+  command = args.join( "_" )
+  if (command.count)
+    local syntax = get_syntax( command )
+    local success = false
+    if (syntax)
+      println "SYNTAX"
+      println "  " + syntax
+      println
+      success = true
+    endIf
+    local description = get_description( command )
+    if (description)
+      println "DESCRIPTION"
+      forEach (line in LineReader(description.word_wrapped(76)))
+        print( "  " ).println( line )
+      endForEach
+      println
+      success = true
+    endIf
+    if (success)
+      return
+    else
+      println "ERROR: No such command '$'." (command)
+      println
+    endIf
+  endIf
+
+  println "USAGE"
+  local lines = String[]
+  forEach (m in <<Global>>.methods)
+    if (m.name.begins_with(prefix))
+      lines.add( "  " + get_syntax(m.name.after_first(prefix)) )
+    endIf
+  endForEach
+  lines.sort( (a,b)=>(a<b) )
+  println (forEach in lines)
+  println
+endRoutine
+
+routine get_syntax( m_name:String )->String
+  if (CommandSyntax.contains(m_name))
+    return "rogo " + CommandSyntax[ m_name ]
+  else
+    local m = <<Global>>.find_method( prefix + m_name )
+    if (not m) return null
+    local line = "rogo $" (m_name.replacing('_',' '))
+    line += " <$>" (m.parameter_name(forEach in 0..<m.parameter_count))
+    return line
+  endIf
+endRoutine
+
+routine get_description( m_name:String )->String
+  if (CommandDescription.contains(m_name))
+    return CommandDescription[ m_name ]
+  else
+    return null
+  endIf
+endRoutine

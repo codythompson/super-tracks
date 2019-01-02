@@ -1,0 +1,28 @@
+uses  Plasmacore
+
+class GGLabel : GGComponent
+  PROPERTIES
+    text   : String
+    font   : Font
+    anchor : Anchor
+    color  : Color
+
+  METHODS
+    method init( text, font=GGComponentManager.default_font, fixed_size=XY(0,0) )
+      size = fixed_size
+      anchor = font.anchor
+      color = font.color
+
+    method on_draw
+      font.anchor = anchor
+      font.color = color
+      font.draw( text, bounds.at(anchor) )
+
+    method set_anchor( @anchor )->this
+      return this
+
+    method set_color( @color )->this
+      return this
+
+endClass
+

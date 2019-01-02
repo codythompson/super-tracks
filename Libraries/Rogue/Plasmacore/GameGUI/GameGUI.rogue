@@ -1,0 +1,40 @@
+# Game GUI
+module Plasmacore
+
+$include "GameGUI/GGButton.rogue"
+$include "GameGUI/GGCheckbox.rogue"
+$include "GameGUI/GGColorBox.rogue"
+$include "GameGUI/GGComponent.rogue"
+$include "GameGUI/GGFiller.rogue"
+$include "GameGUI/GGImage.rogue"
+$include "GameGUI/GGLabel.rogue"
+$include "GameGUI/GGLayout.rogue"
+$include "GameGUI/GGList.rogue"
+$include "GameGUI/GGSpacer.rogue"
+
+class GameGUI : Layer
+  PROPERTIES
+    gui : GGComponent
+
+  METHODS
+    method init( gui )
+      gui.update_layout( Display.bounds )
+
+    method on( e:PointerEvent )
+      if (GGComponentManager.pointer_focus)
+        GGComponentManager.pointer_focus.handle( e )
+        e.consume
+      else
+        gui.handle( e )
+      endIf
+
+    method on_draw
+      gui.handle_draw
+
+    method on_resize
+      gui.update_layout( Display.bounds )
+
+    method on_update
+      gui.handle_update
+endClass
+

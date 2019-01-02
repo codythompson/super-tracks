@@ -1,0 +1,65 @@
+module Plasmacore
+
+class Assets
+  PROPERTIES
+    loaded_asset_count : Int32
+    total_asset_count  : Int32
+    pending_textures   = String[]
+    finished_loading   : Logical
+
+  METHODS
+    method init_object
+
+    method load
+      while (load_another < 1.0) noAction
+
+    method load_another->Real64
+      if (finished_loading and loaded_asset_count == total_asset_count) return 1.0
+
+      if (not total_asset_count) reset_loading_info
+
+      if (pending_textures.count)
+        Texture( pending_textures.remove_last )
+        ++loaded_asset_count
+      endIf
+
+      if (loaded_asset_count == total_asset_count) finished_loading = true
+      if (finished_loading) return 1.0  # avoid divide by zero
+
+      return loaded_asset_count / Real64(total_asset_count)
+
+    method reset_loading_info
+      loaded_asset_count = 0
+      total_asset_count = 0
+      finished_loading = false
+      pending_textures.clear
+
+      # Figure out which properties are unloaded assets.
+      local texture_names = StringTable<<Logical>>()
+      local introspector = this.introspector
+
+      forEach (p in type_info.properties)
+        which (p.type.name)
+          case "Plasmacore::Font"
+            local font = introspector[ p.name ].to<<Font>>
+            if (font) font.collect_texture_names( texture_names )
+
+          case "Plasmacore::Image"
+            local image = introspector[ p.name ].to<<Image>>
+            if (image) image.collect_texture_names( texture_names )
+
+          case "Plasmacore::Image[]"
+            local images = introspector[ p.name ].to<<Image[]>>
+            if (images) images.collect_texture_names( texture_names )
+        endWhich
+      endForEach
+
+      forEach (texture_name in texture_names.keys)
+        if (not Display.textures_by_name.contains(texture_name))
+          pending_textures.add( texture_name )
+          ++total_asset_count
+        endIf
+      endForEach
+
+endClass
+

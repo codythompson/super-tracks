@@ -1,0 +1,162 @@
+module Plasmacore
+
+class TileMapLayout
+  PROPERTIES
+    # Settings
+    clamp_edges       = true
+    offscreen_padding = 1     # number of tiles beyond visible edges to include in draw
+
+    # Properties expressed in world/tile coordinates
+    tiles_wide        : Int32
+    tiles_high        : Int32
+    camera            : XY  # tile position of camera
+
+    # Properties expressed in screen/pixel coordinates
+    bounds            : Box
+    origin            : XY      # screen position of camera
+    scale             = 1.0
+    tile_size         = XY(1,1) # in nominal pixels
+
+    # Internal
+    needs_update      = true
+    scaled_tile_size  = XY(1,1)
+    screen_bounds     : Box
+
+  METHODS
+    method init( tiles_wide, tiles_high, tile_size=XY(1,1) )
+      needs_update = true
+      bounds = Display.bounds
+
+    method draw( callback:Function(index:Int32,ij:XY,bounds:Box) )
+      update_bounds
+
+      local ts = scaled_tile_size
+
+      local x1 = screen_bounds.x - ts.x*offscreen_padding
+      local y1 = screen_bounds.y - ts.y*offscreen_padding
+      local i1 = -offscreen_padding
+      local j1 = -offscreen_padding
+      if (i1 < 0)
+        x1 += -i1 * ts.x
+        i1 = 0
+      endIf
+      if (j1 < 0)
+        y1 += -j1 * ts.y
+        j1 = 0
+      endIf
+      if (x1 < -ts.x)
+        local diff = ((-ts.x - x1) / ts.x).floor->Int32
+        i1 += diff
+        x1 += diff * ts.x
+      endIf
+      if (y1 < -ts.y)
+        local diff = ((-ts.y - y1) / ts.y).floor->Int32
+        j1 += diff
+        y1 += diff * ts.y
+      endIf
+
+      local map_bottom_right = screen_to_map( bounds.bottom_right ).floor + XY(offscreen_padding,offscreen_padding)
+      local i2 = map_bottom_right.x->Int32.or_smaller( tiles_wide-1 )
+      local j2 = map_bottom_right.y->Int32.or_smaller( tiles_high-1 )
+
+      block
+        local y = y1
+        local index_start = j1*tiles_wide + i1
+        forEach (j in j1..j2)
+          local x = x1
+          local index = index_start
+          forEach (i in i1..i2)
+            callback( index, XY(i,j), Box(x,y,ts) )
+            x += ts.x
+            ++index
+          endForEach
+          y += ts.y
+          index_start += tiles_wide
+        endForEach
+      endBlock
+
+    method height->Real64
+      return screen_bounds.size.y
+
+    method ij_to_index( i:Int32, j:Int32 )->Int32
+      return j * width + i
+
+    method index_to_ij( index:Int32 )->XY
+      return XY( index%tiles_wide, index/tiles_wide )
+
+    method screen_to_map( xy:XY )->XY
+      update_bounds
+      return (xy - screen_bounds.position) / scaled_tile_size
+
+    method set_camera( @camera )
+      needs_update = true
+
+    method set_scale( @scale )
+      needs_update = true
+
+    method set_origin( @origin )
+      needs_update = true
+
+    method set_bounds( bounds:Box )
+      set_bounds( bounds, bounds.center )
+
+    method set_bounds( @bounds, @origin )
+      needs_update = true
+
+    method size->XY
+      return screen_bounds.size
+
+    method tile_index_at( screen_pos:XY )->Int32?
+      local ij = tile_ij_at( screen_pos )
+      if (not ij.exists) return null
+      return ij.value.y * tiles_wide + ij.value.x
+
+    method tile_ij_at( screen_pos:XY )->XY?
+      if (not screen_bounds.contains(screen_pos)) return null
+      return screen_to_map( screen_pos ).floor
+
+    method update_bounds
+      if (not needs_update) return
+      needs_update = false
+
+      scaled_tile_size = tile_size * scale
+      screen_bounds = Box( origin-camera*scaled_tile_size, XY(tiles_wide,tiles_high)*scaled_tile_size )
+      local underflow = (bounds.size - screen_bounds.size)
+      if (underflow.x > 0)
+        if (clamp_edges)
+          local new_pos = bounds.position + XY( underflow.x/2, screen_bounds.y )
+          screen_bounds = Box( new_pos, screen_bounds.size )
+        endIf
+      else
+        if (clamp_edges)
+          if (screen_bounds.x > bounds.x)
+            screen_bounds -= XY(screen_bounds.x - bounds.x,0)
+          elseIf (screen_bounds.x2 < bounds.x2)
+            screen_bounds += XY(bounds.x2 - screen_bounds.x2,0)
+          endIf
+        endIf
+      endIf
+      if (underflow.y > 0)
+        if (clamp_edges)
+          local new_pos = bounds.position + XY( screen_bounds.x, underflow.y/2 )
+          screen_bounds = Box( new_pos, screen_bounds.size )
+        endIf
+      else
+        if (clamp_edges)
+          if (screen_bounds.y > bounds.y)
+            screen_bounds -= XY(0,screen_bounds.y - bounds.y)
+          elseIf (screen_bounds.y2 < bounds.y2)
+            screen_bounds += XY(0,bounds.y2 - screen_bounds.y2)
+          endIf
+        endIf
+      endIf
+
+    method width->Real64
+      return screen_bounds.size.x
+
+    method map_to_screen( xy:XY )->XY
+      update_bounds
+      return (xy * scaled_tile_size + screen_bounds.position).floor
+
+endClass
+

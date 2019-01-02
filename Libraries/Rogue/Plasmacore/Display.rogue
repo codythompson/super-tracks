@@ -1,0 +1,955 @@
+module Plasmacore
+
+class Display [singleton]
+  DEPENDENCIES
+    $if target("iOS")
+      nativeHeader
+        #include <OpenGLES/ES2/gl.h>
+        #include <OpenGLES/ES2/glext.h>
+        #define glClearDepth glClearDepthf
+      endNativeHeader
+
+    $elseIf target("Linux") or target("emscripten") or target("Android")
+      nativeHeader
+        #include <GLES2/gl2.h>
+        #include <GLES2/gl2ext.h>
+        #define glClearDepth glClearDepthf
+      endNativeHeader
+
+    $elseIf target("macOS")
+      nativeHeader #include <OpenGL/gl.h>
+    $endIf
+
+  DEFINITIONS
+    VERTEX_BUFFER_SIZE = 4096
+
+    POINTS    = 1
+    LINES     = 2
+    TRIANGLES = 3
+    MESH      = 4  # Each vertex after the first three defines a new triangle using the previous two vertices
+
+    COUNTER_CLOCKWISE = 0
+    CLOCKWISE         = 1
+
+  GLOBAL PROPERTIES
+    default_z                    = -512.0
+    default_screen_type = <<Screen>> : TypeInfo
+
+  PROPERTIES
+    is_configured : Logical
+
+    name               : String
+    screen               = default_screen_type.create_object<<Screen>> : Screen
+
+    window             : Window
+
+    update_timer       = UpdateTimer()
+
+    pointer_position   : XY
+    pointer_exists     : Logical
+
+    refresh_rate        = 60
+    # Disclosed by the native layer - usually 60
+
+    updates_per_second  = 60
+    # Arbitrary - usually left at 60.  Determines how often Screen/State on_update() is called.
+
+    background_color = Color.BLACK : Color
+
+    z                 = default_z : Real64
+
+    custom_shader          : Shader
+    active_render_mode     : RenderMode
+    active_textures        = Texture[]
+    active_primitive_type  = 3
+    active_front_face      = CLOCKWISE : Int32
+
+    vertex_count           : Int32
+    vertex_positions       = Real32[]
+    vertex_uvs             = Real32[]
+    vertex_colors          = Int32[]
+
+    textures_by_name   = StringTable<<Texture>>()
+    texture_list       = Texture[]
+
+    font_data_by_name  = StringTable<<FontData>>()
+
+    system_font  : Font
+    default_font : Font
+
+    default_render_target = RenderTarget()
+    render_target         = default_render_target : RenderTarget
+
+    native "GLuint position_buffer, color_buffer, uv_buffer;"
+
+  GLOBAL METHODS
+    method create( name:String )->Display
+      return Plasmacore.display( name )
+
+  METHODS
+    method init
+
+    method init_object
+      vertex_positions.ensure_capacity( VERTEX_BUFFER_SIZE * 4 )
+      vertex_uvs.ensure_capacity( VERTEX_BUFFER_SIZE * 2 )
+      vertex_colors.ensure_capacity( VERTEX_BUFFER_SIZE )
+
+    method on_cleanup
+      native @|if ($this->position_buffer)
+              |{
+              |  glDeleteBuffers(1, &$this->position_buffer);
+              |  glDeleteBuffers(1, &$this->color_buffer);
+              |  glDeleteBuffers(1, &$this->uv_buffer);
+              |}
+
+    method activate_screen_and_state
+      if (not screen) screen = default_screen_type.create_object<<Screen>>
+      screen.display = this
+      screen.state.screen = screen
+
+      # On any new screens and states: call on_start, ensure on_update has been called once
+      # before any later drawing, and repeat the process if the screen or state changes during
+      # the process.
+      loop
+        if (not screen.is_active)
+          screen.is_active = true
+          screen.on_start
+          screen.load_images
+          nextIteration
+        endIf
+
+        if (not screen.state.is_active)
+          screen.state.is_active = true
+          screen.state.on_start
+          nextIteration
+        endIf
+
+        local cur_state = screen.state
+        if (not cur_state.previous_display_size.exists or cur_state.previous_display_size.value != Display.size)
+          # Will also call handle_resize on the screen
+          cur_state.handle_resize
+          cur_state.previous_display_size = Display.size
+          nextIteration
+        endIf
+
+        # Corner case: if the state didn't need a resize but the screen still does
+        if (not screen.previous_display_size.exists or screen.previous_display_size.value != Display.size)
+          screen.handle_resize
+          screen.previous_display_size = Display.size
+          nextIteration
+        endIf
+
+        if (screen.state.needs_first_update)
+          # Will also update the screen
+          screen.state.needs_first_update = false
+          screen.state.handle_update
+          nextIteration
+        endIf
+
+        # Corner case: if the state didn't need a first update but the screen does
+        if (screen.needs_first_update)
+          screen.needs_first_update = false
+          screen.handle_update
+          nextIteration
+        endIf
+
+        escapeLoop
+      endLoop
+
+    method at( u:Real64, v:Real64 )->XY
+      return bounds.at( u, v )
+
+    method at( uv:XY )->XY
+      return bounds.at( uv )
+
+    method bounds->Box
+      return Box(size)
+
+    method center->XY [macro]
+      return (size/2)
+
+    method clear->this
+      native "int gl_flags = GL_COLOR_BUFFER_BIT;"
+      native @|int c = $background_color.argb;
+              |gl_flags |= GL_COLOR_BUFFER_BIT;
+              |glClearColor( ((c>>16)&255)/255.0f, ((c>>8)&255)/255.0f, (c&255)/255.0f, ((c>>24)&255)/255.0f );
+
+      native "glClear( gl_flags );"
+
+      return this
+
+    method clear( background_color )->this
+      return clear
+
+    method clear_transforms
+      render_target.clear_transforms
+
+      #{
+      if (render_target)
+        local frame_buffer_id = render_target.texture.frame_buffer_id
+        local w = render_target.texture.texture_size.x
+        local h = render_target.texture.texture_size.y
+        native @|glBindFramebuffer( GL_FRAMEBUFFER, $frame_buffer_id );
+                |glBindTexture( GL_TEXTURE_2D, 0 );
+                |glViewport(0, 0, $w, $h );
+      else
+        native @|glBindFramebuffer( GL_FRAMEBUFFER, 0 );
+      endIf
+      }#
+
+    method clipping_region->Box?
+      return render_target.clipping_region
+
+    method define_texture( gl_id:Int32, bitmap:Bitmap, options:Int32 )->Int32
+      nativeCode
+        #ifndef GL_BGRA
+          #ifdef GL_BGRA_EXT
+            #ifndef __EMSCRIPTEN__
+              #define GL_BGRA GL_BGRA_EXT
+            #endif
+          #endif
+        #endif
+      endNativeCode
+
+      if (not gl_id)
+        native @|GLuint new_id;
+                |glGenTextures( 1, &new_id );
+                |$gl_id = (RogueInt32) new_id;
+      endIf
+      OpenGL.log_errors( "generating texture id" )
+
+      if (not gl_id) return 0
+
+      native @|glBindTexture( GL_TEXTURE_2D, $gl_id );
+      OpenGL.log_errors( "binding texture" )
+
+      _define_texture( bitmap, options )
+      OpenGL.log_errors( "defining texture" )
+
+      return gl_id
+
+    method _define_texture( bitmap:Bitmap, options:Int32 )
+      local w = bitmap.width
+      local h = bitmap.height
+      local bpp = options & (32|16|8)
+
+      native @|void* data = $bitmap->pixels->data->as_bytes;
+              |switch ($bpp)
+              |{
+              |  case 32:
+              |#ifdef GL_BGRA
+              |    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, $w, $h, 0, GL_BGRA, GL_UNSIGNED_BYTE, data );
+              |    if ( !glGetError() ) return;
+              |#endif
+              |
+              |    {
+              |      // Swap Red & Blue to do trusty RGBA format
+              |      int count = $w*$h;
+              |      uint32_t * cursor = ((uint32_t *) data);
+              |      while (--count >= 0)
+              |      {
+              |        *cursor = ((*cursor >> 16) & 0x000000ff)
+              |                | ((*cursor << 16) & 0x00ff0000)
+              |                | ((*cursor <<  0) & 0xff000000)
+              |                | ((*cursor <<  0) & 0x0000ff00);
+              |        ++cursor;
+              |      }
+              |    }
+              |    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, $w, $h, 0, GL_RGBA, GL_UNSIGNED_BYTE, data );
+              |    return;
+              |
+              |  case 16:
+              |    {
+              |      // Convert 16-bit ARGB to 16-bit RGBA
+              |      int count = $w*$h;
+              |      RogueWord* cursor = ((RogueWord*) data) - 1;
+              |      while (--count >= 0)
+              |      {
+              |        RogueWord pixel = *(++cursor);
+              |        *cursor = (RogueWord)
+              |                ( ((pixel<<4) & 0x0f00)
+              |                | ((pixel>>4)&0xf0)
+              |                | ((pixel<<12)&0xf000)
+              |                | ((pixel>>12)&15) );
+              |      }
+              |    }
+              |    glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, $w, $h, 0, GL_RGBA, GL_UNSIGNED_SHORT_4_4_4_4, data );
+              |    return;
+              |}
+
+
+    method delete_texture( gl_id:Int32 )
+      if (not gl_id) return
+
+      native @|GLuint texture_id = (GLuint) $gl_id;
+              |glDeleteTextures( 1, &texture_id );
+
+    method display_scale->Real64
+      return render_target.display_scale
+
+    method draw( box:Box, color:Int32, thickness=1:Int32 )
+      draw( box, Color(color) )
+
+    method draw( box:Box, color:Color, thickness=1:Int32 )
+      fill( Box(box.top_left,thickness,box.height), color )
+      fill( Box(box.top_left+XY(box.width-thickness,0),thickness,box.height), color )
+      if (box.width > thickness*2)
+        fill( Box(box.top_left+XY(thickness,0),box.width-thickness*2,thickness), color )
+        fill( Box(box.top_left+XY(thickness,box.height-thickness),box.width-thickness*2,thickness), color )
+      endIf
+
+    method draw( line:Line, colors:Colors )
+      draw( transform(line), colors, select{ colors.is_opaque:RenderMode.OPAQUE_SHAPE || RenderMode.ALPHA_SHAPE }, null )
+
+    method draw( line:Line<<XYZW>>, colors:Colors, render_mode:RenderMode, shader:Shader )
+      if (colors.count == 1) colors = Colors( colors.a, colors.a )
+
+      set_primitive_type( LINES )
+      set_render_mode( render_mode, shader )
+
+      reserve_vertices( 2 )
+
+      vertex_positions.add( line.a.x )
+      vertex_positions.add( line.a.y )
+      vertex_positions.add( line.a.z )
+      vertex_positions.add( line.a.w )
+      vertex_positions.add( line.b.x )
+      vertex_positions.add( line.b.y )
+      vertex_positions.add( line.b.z )
+      vertex_positions.add( line.b.w )
+
+      vertex_colors.add( colors.a.argb )
+      vertex_colors.add( colors.b.argb )
+
+    method fill( box:Box, color:Color )
+      fill( box, Colors(color) )
+
+    method fill( box:Box, color:Int32 )
+      fill( box, Colors(color) )
+
+    method fill( box:Box, colors:Colors )
+      fill_solid_quad( transform(Quad(box)), colors,
+        select{ colors.is_opaque:RenderMode.OPAQUE_SHAPE || RenderMode.ALPHA_SHAPE }, null )
+
+    method fill( triangle:Triangle, color:Color )
+      fill( triangle, Colors(color) )
+
+    method fill( triangle:Triangle, colors:Colors )
+      fill_solid_triangle( transform(triangle), colors,
+        select{ colors.is_opaque:RenderMode.OPAQUE_SHAPE || RenderMode.ALPHA_SHAPE }, null )
+
+    method fill( triangle:Triangle, image:Image, uv:Triangle, colors=Colors(Color.WHITE):Colors,
+        render_mode=null:RenderMode?, shader=ImageShader.TEXTURE:Shader )
+      local texture_data = image.data as TextureImageData
+      if (texture_data)
+        fill( triangle, texture_data.texture, uv, colors, render_mode, shader )
+      else
+        fill( triangle, colors )
+      endIf
+
+    method fill( triangle:Triangle, texture:Texture, uv:Triangle, colors=Colors(Color.WHITE):Colors,
+        render_mode=null:RenderMode?, shader=ImageShader.TEXTURE:Shader )
+
+      if (not render_mode.exists)
+        if (texture.is_opaque) render_mode = RenderMode.OPAQUE_IMAGE
+        else                   render_mode = RenderMode.ALPHA_IMAGE
+      endIf
+
+      fill_textured_triangle( texture, transform(triangle), colors, uv, render_mode.value, shader )
+
+    method fill_solid_quad( quad:Quad<<XYZW>>, colors:Colors, render_mode:RenderMode, shader:Shader )
+      set_primitive_type( TRIANGLES )
+      set_render_mode( render_mode, shader )
+
+      reserve_vertices( 6 )
+
+      vertex_positions.add( quad.a.x )
+      vertex_positions.add( quad.a.y )
+      vertex_positions.add( quad.a.z )
+      vertex_positions.add( quad.a.w )
+      vertex_positions.add( quad.b.x )
+      vertex_positions.add( quad.b.y )
+      vertex_positions.add( quad.b.z )
+      vertex_positions.add( quad.b.w )
+      vertex_positions.add( quad.c.x )
+      vertex_positions.add( quad.c.y )
+      vertex_positions.add( quad.c.z )
+      vertex_positions.add( quad.c.w )
+
+      vertex_positions.add( quad.a.x )
+      vertex_positions.add( quad.a.y )
+      vertex_positions.add( quad.a.z )
+      vertex_positions.add( quad.a.w )
+      vertex_positions.add( quad.c.x )
+      vertex_positions.add( quad.c.y )
+      vertex_positions.add( quad.c.z )
+      vertex_positions.add( quad.c.w )
+      vertex_positions.add( quad.d.x )
+      vertex_positions.add( quad.d.y )
+      vertex_positions.add( quad.d.z )
+      vertex_positions.add( quad.d.w )
+
+      vertex_colors.add( colors.a.argb )
+      vertex_colors.add( colors.b.argb )
+      vertex_colors.add( colors.c.argb )
+      vertex_colors.add( colors.a.argb )
+      vertex_colors.add( colors.c.argb )
+      vertex_colors.add( colors.d.argb )
+
+    method fill_solid_triangle( triangle:Triangle<<XYZW>>, colors:Colors, render_mode:RenderMode, shader:Shader )
+      set_primitive_type( TRIANGLES )
+      set_render_mode( render_mode, shader )
+
+      reserve_vertices( 3 )
+
+      vertex_positions.add( triangle.a.x )
+      vertex_positions.add( triangle.a.y )
+      vertex_positions.add( triangle.a.z )
+      vertex_positions.add( triangle.a.w )
+      vertex_positions.add( triangle.b.x )
+      vertex_positions.add( triangle.b.y )
+      vertex_positions.add( triangle.b.z )
+      vertex_positions.add( triangle.b.w )
+      vertex_positions.add( triangle.c.x )
+      vertex_positions.add( triangle.c.y )
+      vertex_positions.add( triangle.c.z )
+      vertex_positions.add( triangle.c.w )
+
+      vertex_colors.add( colors.a.argb )
+      vertex_colors.add( colors.b.argb )
+      vertex_colors.add( colors.c.argb )
+
+    method fill_solid_mesh( mesh:MeshBuilder, render_mode:RenderMode, shader:Shader )
+      fill_textured_mesh( mesh, null, render_mode, shader )
+
+    method fill_textured_mesh( mesh:MeshBuilder, texture:Texture, render_mode:RenderMode, shader:Shader )
+      local is_linked = mesh.is_linked
+
+      if (is_linked) flush
+
+      if (texture) set_texture( 0, texture )
+      set_primitive_type( ?:{is_linked:MESH || TRIANGLES}, ?:{mesh.is_clockwise:CLOCKWISE || COUNTER_CLOCKWISE} )
+      set_render_mode( render_mode, shader )
+
+      reserve_vertices( mesh.positions.count )
+
+      local t = transform
+      local z = this.z
+
+      forEach (xy in mesh.positions)
+        local xyzw = t * XYZ( xy, z )
+        vertex_positions.add( xyzw.x )
+        vertex_positions.add( xyzw.y )
+        vertex_positions.add( xyzw.z )
+        vertex_positions.add( xyzw.w )
+      endForEach
+
+      forEach (uv in mesh.uvs)
+        vertex_uvs.add( uv.x ).add( uv.y )
+      endForEach
+
+      forEach (color in mesh.colors)
+        vertex_colors.add( color.argb )
+      endForEach
+
+      if (is_linked) flush
+
+
+    method fill_textured_quad( texture:Texture,
+        quad:Quad<<XYZW>>,
+        colors:Colors,
+        uv:Quad,
+        render_mode:RenderMode,
+        shader:Shader )
+
+      set_texture( 0, texture )
+      set_primitive_type( TRIANGLES )
+      set_render_mode( render_mode, shader )
+
+      reserve_vertices( 6 )
+
+      vertex_positions.add( quad.a.x )
+      vertex_positions.add( quad.a.y )
+      vertex_positions.add( quad.a.z )
+      vertex_positions.add( quad.a.w )
+      vertex_positions.add( quad.b.x )
+      vertex_positions.add( quad.b.y )
+      vertex_positions.add( quad.b.z )
+      vertex_positions.add( quad.b.w )
+      vertex_positions.add( quad.c.x )
+      vertex_positions.add( quad.c.y )
+      vertex_positions.add( quad.c.z )
+      vertex_positions.add( quad.c.w )
+
+      vertex_positions.add( quad.a.x )
+      vertex_positions.add( quad.a.y )
+      vertex_positions.add( quad.a.z )
+      vertex_positions.add( quad.a.w )
+      vertex_positions.add( quad.c.x )
+      vertex_positions.add( quad.c.y )
+      vertex_positions.add( quad.c.z )
+      vertex_positions.add( quad.c.w )
+      vertex_positions.add( quad.d.x )
+      vertex_positions.add( quad.d.y )
+      vertex_positions.add( quad.d.z )
+      vertex_positions.add( quad.d.w )
+
+      vertex_uvs.add( uv.a.x );
+      vertex_uvs.add( uv.a.y );
+      vertex_uvs.add( uv.b.x );
+      vertex_uvs.add( uv.b.y );
+      vertex_uvs.add( uv.c.x );
+      vertex_uvs.add( uv.c.y );
+      vertex_uvs.add( uv.a.x );
+      vertex_uvs.add( uv.a.y );
+      vertex_uvs.add( uv.c.x );
+      vertex_uvs.add( uv.c.y );
+      vertex_uvs.add( uv.d.x );
+      vertex_uvs.add( uv.d.y );
+
+      vertex_colors.add( colors.a.argb )
+      vertex_colors.add( colors.b.argb )
+      vertex_colors.add( colors.c.argb )
+      vertex_colors.add( colors.a.argb )
+      vertex_colors.add( colors.c.argb )
+      vertex_colors.add( colors.d.argb )
+
+    method fill_textured_triangle( texture:Texture,
+        triangle:Triangle<<XYZW>>,
+        colors:Colors,
+        uv:Triangle,
+        render_mode:RenderMode,
+        shader:Shader )
+
+      set_texture( 0, texture )
+      set_primitive_type( TRIANGLES )
+      set_render_mode( render_mode, shader )
+
+      reserve_vertices( 3 )
+
+      vertex_positions.add( triangle.a.x )
+      vertex_positions.add( triangle.a.y )
+      vertex_positions.add( triangle.a.z )
+      vertex_positions.add( triangle.a.w )
+      vertex_positions.add( triangle.b.x )
+      vertex_positions.add( triangle.b.y )
+      vertex_positions.add( triangle.b.z )
+      vertex_positions.add( triangle.b.w )
+      vertex_positions.add( triangle.c.x )
+      vertex_positions.add( triangle.c.y )
+      vertex_positions.add( triangle.c.z )
+      vertex_positions.add( triangle.c.w )
+
+      vertex_uvs.add( uv.a.x );
+      vertex_uvs.add( uv.a.y );
+      vertex_uvs.add( uv.b.x );
+      vertex_uvs.add( uv.b.y );
+      vertex_uvs.add( uv.c.x );
+      vertex_uvs.add( uv.c.y );
+
+      vertex_colors.add( colors.a.argb )
+      vertex_colors.add( colors.b.argb )
+      vertex_colors.add( colors.c.argb )
+
+    method flush->this
+      render_2dx
+      return this
+
+    method handle( e:KeyEvent )
+      activate_screen_and_state
+      screen.state.handle( e )
+
+    method handle( e:PointerEvent )
+      if (pointer_exists)
+        e.delta = e.position - pointer_position
+        pointer_position = e.position
+      else
+        pointer_exists = true
+        pointer_position = e.position
+      endIf
+      activate_screen_and_state
+      screen.state.handle( e )
+
+    method handle( e:ScrollEvent )
+      activate_screen_and_state
+      screen.state.handle( e )
+
+    method handle( e:TextEvent )
+      activate_screen_and_state
+      screen.state.handle( e )
+
+    method height->Int32 [macro]
+      return this.size.y->Int32
+
+    method is_landscape->Logical
+      return (width > height)
+
+    method is_portrait->Logical
+      return (width <= height)
+
+    method is_rendering_offscreen->Logical
+      return (render_target is not default_render_target)
+
+    method object_transform->Matrix
+      return render_target.update_transform.object_transform
+
+    method on_graphics_lost
+      # Unload all textures
+      forEach (texture in texture_list step -1) texture.unload
+      texture_list.clear
+      forEach (data in font_data_by_name)
+        data.unload
+      endForEach
+
+      # Null any shaders so that the wrapper classes will be forced to regenerate them.
+      local this_type = type_info
+      local type_Shader = <<Shader>>
+      forEach (p in this_type.properties)
+        if (p.type.instance_of(type_Shader))
+          local shader = type_info.property<<Shader>>( this, p )
+          if (shader) type_info.set_property<<Shader>>( this, p, null )
+        endIf
+      endForEach
+
+    method world_transform->Matrix
+      return render_target.update_transform.world_transform
+
+    method offset->XY
+      return render_target.offset
+
+    method perspective_center->XY
+      return render_target.perspective_center
+
+    method pop_clipping_region->this
+      render_target.pop_clipping_region
+      return this
+
+    method pop_object_transform( n=1:Int32 )->this
+      render_target.pop_object_transform( n )
+      return this
+
+    method pop_view_transform( n=1:Int32 )->this
+      render_target.pop_view_transform( n )
+      return this
+
+    method set_render_target( canvas:Canvas )
+      if (canvas)
+        flush
+        @render_target = canvas.render_target
+        render_target.configure( canvas.texture.image_size )
+        clipping_region = clipping_region  # Reset clipping region
+      else
+        remove_render_target
+      endIf
+
+    method remove_render_target
+      flush
+      native "glFlush();"
+      @render_target = default_render_target
+      @render_target.activate
+      clipping_region = clipping_region  # Reset clipping region
+
+    method push_clipping_region( box:Box?, &replace )->this
+      render_target.push_clipping_region( box, replace )
+      return this
+
+    method push_object_transform( m:Matrix )->this
+      render_target.push_object_transform( m )
+      return this
+
+    method push_view_transform( m:Matrix )->this
+      render_target.push_view_transform( m )
+      return this
+
+    method render( _true_size:XY, _viewport_size:XY, refresh_rate )
+      Display = this  # set the singleton reference to be this display
+      render_target.configure( _true_size, _viewport_size )
+      activate_screen_and_state
+
+      update_timer.update
+
+      while (update_timer.tick)
+        activate_screen_and_state
+        screen.state.handle_update
+      endWhile
+
+      activate_screen_and_state
+      screen.state.handle_draw
+
+      OverlayLog.update
+      OverlayLog.draw
+
+      flush
+      native "glFlush();"
+
+    method render_2dx
+      if (not vertex_count) return
+
+      if (not is_configured)
+        is_configured = true
+
+        native @|glGenBuffers(1, &$this->position_buffer);
+                |glGenBuffers(1, &$this->color_buffer);
+                |glGenBuffers(1, &$this->uv_buffer);
+      endIf
+
+      local render_mode = active_render_mode
+
+      local shader = custom_shader
+      if (not shader)
+        # Choose shader based on render mode.
+        if (render_mode.is_textured)
+          which (render_mode.value & RenderMode.COLOR_MODE_MASK)
+            case RenderMode.COLOR_MULTIPLY: shader = ImageShader.TEXTURE_WITH_COLOR_MULTIPLY
+            case RenderMode.COLOR_ADD:      shader = ImageShader.TEXTURE_WITH_COLOR_ADD
+            case RenderMode.COLOR_FILL:     shader = ImageShader.TEXTURE_WITH_COLOR_FILL
+            others:                         shader = ImageShader.TEXTURE
+          endWhich
+        else
+          shader = ImageShader.COLOR
+        endIf
+      endIf
+
+      if (not shader)
+        println "Display.render_2dx: No active shader"
+        return
+      endIf
+
+      local vp_size = viewport_size
+
+      native @|glUseProgram( $shader->program_id );
+              |
+              |glViewport( 0, 0, (int)$vp_size.x, (int)$vp_size.y );
+              |glEnable( GL_CULL_FACE );
+              |glCullFace( GL_BACK );
+
+      native @|glFrontFace( $active_front_face ? GL_CW : GL_CCW );
+
+      if (render_mode.is_blended)
+        local gl_source_blend = 0
+        which (render_mode.source_blend)
+          case RenderMode.BLEND_ZERO:                 gl_source_blend = native("GL_ZERO")->Int32
+          case RenderMode.BLEND_ONE:                  gl_source_blend = native("GL_ONE")->Int32
+          case RenderMode.BLEND_SOURCE_ALPHA:         gl_source_blend = native("GL_SRC_ALPHA")->Int32
+          case RenderMode.BLEND_INVERSE_SOURCE_ALPHA: gl_source_blend = native("GL_ONE_MINUS_SRC_ALPHA")->Int32
+        endWhich
+
+        local gl_dest_blend = 0
+        which (render_mode.dest_blend)
+          case RenderMode.BLEND_ZERO:                 gl_dest_blend = native("GL_ZERO")->Int32
+          case RenderMode.BLEND_ONE:                  gl_dest_blend = native("GL_ONE")->Int32
+          case RenderMode.BLEND_SOURCE_ALPHA:         gl_dest_blend = native("GL_SRC_ALPHA")->Int32
+          case RenderMode.BLEND_INVERSE_SOURCE_ALPHA: gl_dest_blend = native("GL_ONE_MINUS_SRC_ALPHA")->Int32
+        endWhich
+
+        native @|glEnable( GL_BLEND );
+                |glBlendFunc( $gl_source_blend, $gl_dest_blend );
+      else
+        native @|glDisable( GL_BLEND );
+      endIf
+
+      if (render_mode.is_textured)
+        forEach (i in 0..<active_textures.count.or_smaller(shader.texture_settings.count))
+          local texture = active_textures[ i ]
+          if (texture)
+            local setting = shader.texture_settings[ i ]
+            native @|glActiveTexture( GL_TEXTURE0+$i );
+                    |glBindTexture( GL_TEXTURE_2D, $texture->id );
+                    |glUniform1i( $setting, $i );
+
+            if (render_mode.wrap_x)
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
+            else
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+            endIf
+
+            if (render_mode.wrap_y)
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
+            else
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+            endIf
+
+            if (render_mode.is_point_filtered)
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+            else
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+            endIf
+          endIf
+        endForEach
+      endIf
+
+      # ---- Set Vertex Color Mode ------------------------------------------------
+      # Copy vertex colors and set up vertex color mode
+      # Swap red and blue while premultiplying R,G,B by A.
+      local count = vertex_colors.count
+      native @|{
+              |  RogueInt32* src = $vertex_colors->data->as_int32s - 1;
+              |  while (--$count >= 0)
+              |  {
+              |    int color = *(++src);
+              |    int a = (color >> 24) & 255;
+              |    int r = (((color >> 16) & 255) * a) / 255;
+              |    int g = (((color >> 8) & 255) * a) / 255;
+              |    int b = ((color & 255) * a) / 255;
+              |    *src = (a << 24) | (b << 16) | (g << 8) | r;
+              |  }
+              |}
+
+      # Configure shader
+      if (shader.position_attribute >= 0)
+        native @|glBindBuffer(GL_ARRAY_BUFFER, $this->position_buffer);
+                |glBufferData(GL_ARRAY_BUFFER, sizeof(GL_FLOAT) * $vertex_positions->count, $vertex_positions->data->as_real32s, GL_STREAM_DRAW );
+                |glEnableVertexAttribArray( $shader->position_attribute );
+                |glVertexAttribPointer( $shader->position_attribute, 4, GL_FLOAT, GL_FALSE, 0, 0);
+      endIf
+
+      if (shader.color_attribute >= 0)
+        native @|glBindBuffer(GL_ARRAY_BUFFER, $this->color_buffer);
+                |glBufferData(GL_ARRAY_BUFFER, 4 * $vertex_colors->count, $vertex_colors->data->as_int32s, GL_STREAM_DRAW );
+                |glEnableVertexAttribArray( $shader->color_attribute );
+                |glVertexAttribPointer( $shader->color_attribute, 4, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
+      endIf
+
+      if (shader.uv_attribute >= 0)
+        native @|glBindBuffer(GL_ARRAY_BUFFER, $this->uv_buffer);
+                |glBufferData(GL_ARRAY_BUFFER, sizeof(GL_FLOAT) * $vertex_uvs->count, $vertex_uvs->data->as_real32s, GL_STREAM_DRAW );
+                |glEnableVertexAttribArray( $shader->uv_attribute );
+                |glVertexAttribPointer( $shader->uv_attribute, 2, GL_FLOAT, GL_FALSE, 0, 0);
+      endIf
+
+      which (active_primitive_type)
+        case POINTS
+          native @|glDrawArrays( GL_POINTS, 0, $vertex_count );
+
+        case LINES
+          native @|glDrawArrays( GL_LINES, 0, $vertex_count );
+
+        case TRIANGLES
+          native @|glDrawArrays( GL_TRIANGLES, 0, $vertex_count );
+
+        case MESH
+          native @|glDrawArrays( GL_TRIANGLE_STRIP, 0, $vertex_count );
+
+      endWhich
+
+      OpenGL.log_errors( "rendering" )
+
+      # Cleanup
+      vertex_count = 0
+      vertex_positions.clear
+      vertex_uvs.clear
+      vertex_colors.clear
+
+    method reserve_vertices( n:Int32 )
+      if (vertex_count + n > VERTEX_BUFFER_SIZE) flush
+      vertex_count += n
+
+    method scale_to_fit( w:Int32, h:Int32, anchor=Anchor.TOP_LEFT:Anchor )->this
+      return scale_to_fit( XY(w,h), anchor )
+
+    method scale_to_fit( target_display_size:XY, anchor=Anchor.TOP_LEFT:Anchor )->this
+      render_target.scale_to_fit( target_display_size, anchor )
+      return this
+
+    method set_clipping_region( new_clipping_region:Box? )->this
+      render_target.set_clipping_region( new_clipping_region )
+      return this
+
+    method set_primitive_type( primitive_type:Int32, front_face=Display.CLOCKWISE:Int32 )->this
+      if (primitive_type == active_primitive_type and front_face == active_front_face) return this
+      flush
+      active_primitive_type = primitive_type
+      active_front_face = front_face
+      return this
+
+    method set_offset( new_offset:XY )->this
+      render_target.set_offset( new_offset )
+      return this
+
+    method set_perspective_center( new_center:XY )->this
+      render_target.set_perspective_center( new_center )
+      return this
+
+    method set_projection_mode( _projection_mode:ProjectionMode )->this
+      render_target.projection_mode = _projection_mode
+      render_target.projection_mode.update
+      return this
+
+    method set_projection_transform( _projection_transform:Matrix )->this
+      render_target.projection_transform = _projection_transform
+      render_target.transform_modified = true
+      return this
+
+    method set_render_mode( render_mode:RenderMode, shader=null:Shader )->this
+      if (render_mode.value == active_render_mode.value and custom_shader is shader) return this
+      flush
+      active_render_mode = render_mode
+      custom_shader = shader
+      return this
+
+    method set_texture( index:Int32, texture:Texture )->this
+      if (index < active_textures.count and active_textures[index] is texture) return this
+      flush
+      active_textures.expand_to_include( index )[ index ] = texture
+      return this
+
+    method set_state( new_state:State )->this
+      # Sets the state of this Display's current screen.
+      screen.@state = new_state
+      return this
+
+    method set_screen( @screen )->this
+      screen.display = this
+      return this
+
+    method size->XY
+      return render_target.size
+
+    method state->State [macro]
+      # Obtains the state of this Display's current screen.
+      return this.screen.state
+
+    method transform->Matrix
+      return render_target.update_transform.transform
+
+    method transform( quad:Quad )->Quad<<XYZW>>
+      local t = transform
+      local _z = z
+      return Quad<<XYZW>>( t*XYZ(quad.a,_z), t*XYZ(quad.b,_z), t*XYZ(quad.c,_z), t*XYZ(quad.d,_z) )
+
+    method transform( quad:Quad<<XYZ>> )->Quad<<XYZW>>
+      local t = transform
+      return Quad<<XYZW>>( t*quad.a, t*quad.b, t*quad.c, t*quad.d )
+
+    method transform( line:Line )->Line<<XYZW>>
+      local t = transform
+      local _z = z
+      return Line<<XYZW>>( t*XYZ(line.a,_z), t*XYZ(line.b,_z) )
+
+    method transform( triangle:Triangle )->Triangle<<XYZW>>
+      local t = transform
+      local _z = z
+      return Triangle<<XYZW>>( t*XYZ(triangle.a,_z), t*XYZ(triangle.b,_z), t*XYZ(triangle.c,_z) )
+
+    method true_height->Int32 [macro]
+      return this.true_size.y->Int32
+
+    method true_size->XY [macro]
+      return this.render_target.true_size
+
+    method true_width->Int32 [macro]
+      return this.true_size.x->Int32
+
+    method view_transform->Matrix
+      return render_target.update_transform.view_transform
+
+    method viewport_size->XY [macro]
+      return this.render_target.viewport_size
+
+    method width->Int32 [macro]
+      return this.size.x->Int32
+
+endClass
+

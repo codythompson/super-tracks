@@ -1,0 +1,178 @@
+module Plasmacore::UI
+
+class Component : SupportsTheme<<Theme>>
+  # Base class of all UI elements.
+  PROPERTIES
+    position   : XY
+    size       : XY
+
+    fixed_size : XY   # A `0` in any dimension indicates no fixed size in that dimension.
+
+    parent     : Component
+    children   : Component[]
+
+    theme      = Display.ui_theme : Theme
+
+  METHODS
+    method init( _bounds:Box )
+      position = _bounds.position
+      size = _bounds.size
+
+    method init( fixed_size )
+      size = fixed_size
+
+    method add( child:Component, options=null:ValueTable )->this
+      ensure children
+      children.add( child )
+      child.parent = this
+      request_layout
+      return this
+
+    method adjust_bounds( display_bounds:Box, anchor=null:Anchor? )->this
+      local w = fixed_size.x
+      local h = fixed_size.y
+
+      if (w == 0)
+        w = maximum_width
+        if (w == 0 or w > display_bounds.size.x)
+          w = display_bounds.size.x
+          local min_w = minimum_width
+          if (w < min_w) w = min_w
+        endIf
+      endIf
+
+      if (h == 0)
+        h = maximum_height
+        if (h == 0 or h > display_bounds.size.y)
+          h = display_bounds.size.y
+          local min_h = minimum_height
+          if (h < min_h) h = min_h
+        endIf
+      endIf
+
+      size = XY( w, h )
+      if (anchor) position = bounds.positioned_within( display_bounds, anchor.value ).position.floor
+      else        position = display_bounds.position
+
+      return this
+
+    method after( e:KeyEvent )
+
+    method after( e:PointerEvent )
+
+    method after_draw
+
+    method after_update
+
+    method bounds->Box
+      return Box( position, size )
+
+    method dispatch( e:KeyEvent )
+      if (children)
+        forEach (child in children) child.handle( e )
+      endIf
+
+    method dispatch( e:PointerEvent )
+      if (children)
+        forEach (child in children) child.handle( e )
+      endIf
+
+    method dispatch_draw
+      if (children)
+        forEach (child in children) child.handle_draw
+      endIf
+
+    method dispatch_update
+      if (children)
+        forEach (child in children) child.handle_update
+      endIf
+
+    method handle( e:KeyEvent )
+      on( e )
+      if (e.is_consumed) return
+
+      dispatch( e )
+      if (e.is_consumed) return
+
+      after( e )
+
+    method handle( e:PointerEvent )
+      on( e )
+      if (e.is_consumed) return
+
+      dispatch( e )
+      if (e.is_consumed) return
+
+      after( e )
+
+    method handle_draw
+      on_draw
+      dispatch_draw
+      after_draw
+
+    method handle_update
+      on_update
+      dispatch_update
+      after_update
+
+    method maximum_height->Real64
+      return fixed_size.y
+
+    method maximum_width->Real64
+      return fixed_size.x
+
+    method minimum_height->Real64
+      return fixed_size.y
+
+    method minimum_width->Real64
+      return fixed_size.x
+
+    method on( e:KeyEvent )
+
+    method on( e:PointerEvent )
+
+    method on_draw
+      theme.invoke_draw( this )
+
+    method on_update
+
+    method operator+( other:Component )->Component
+      return HorizontalLayoutGrid().add( this ).add( other )
+
+    method operator/( other:Component )->Component
+      return VerticalLayoutGrid().add( this ).add( other )
+
+    method perform_layout( new_bounds:Box )
+      adjust_bounds( new_bounds )
+      if (children)
+        forEach (child in children) child.perform_layout( child.bounds )
+      endIf
+
+    method remove( child:Component )->Component
+      if (children) return children.remove( child )
+      else          return child
+
+    method request_layout
+      if (parent) parent.request_layout
+
+    method set_content_anchor( new_content_anchor:Anchor? )->this
+      throw UnsupportedOperationError( type_name + ".set_content_anchor()" )
+
+    method set_fixed_size( new_size:XY )->this
+      if (new_size != fixed_size)
+        @fixed_size = new_size
+        request_layout
+      endIf
+      return this
+
+    method update_layout
+      if (parent) parent.update_layout
+
+    method update_layout( new_bounds:Box )
+      if (new_bounds != bounds)
+        adjust_bounds( new_bounds )
+        request_layout
+      endIf
+      update_layout
+endClass
+

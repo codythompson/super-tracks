@@ -1,0 +1,43 @@
+module Plasmacore
+
+augment Image[]
+  PROPERTIES
+    name       : String
+    image_info : ImageInfo
+    is_loaded  : Logical
+
+  METHODS
+    method init( name )
+      local info = Plasmacore.find_image_info( name )
+      if (info) init( info )
+
+    method init( image_info )
+      which (image_info.type)
+        case ImageInfo.TYPE_IMAGE_LIST
+          forEach (info in image_info.images)
+            add( Image(info) )
+          endForEach
+      endWhich
+
+    method collect_texture_names( texture_names:StringTable<<Logical>> )
+      forEach (image in this)
+        if (image) image.collect_texture_names( texture_names )
+      endForEach
+
+    method load->this
+      if (is_loaded) return this
+      is_loaded = true
+      forEach (image in this) image.load
+      return this
+
+    method reload
+      forEach (image in this)
+        if (image) image.reload
+      endForEach
+
+    method unload->this
+      forEach (image in this) image.unload
+      is_loaded = false
+      return this
+endAugment
+

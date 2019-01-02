@@ -1,0 +1,476 @@
+module Plasmacore
+
+class Sound [abstract]
+  GLOBAL METHODS
+    method create( name:String, is_music=null:Logical?, is_repeating=false:Logical )->Sound
+      return BasicSound( name, is_music, is_repeating )
+
+    method create( name:String, channels=1:Int32, is_music=null:Logical? )->Sound
+      return SoundGroup( name, channels, is_music )
+
+  GLOBAL PROPERTIES
+    mute : Logical
+
+  METHODS
+    method duration->Real64  [abstract]
+    method can_play->Logical [abstract]
+    method is_finished->Logical  [abstract]
+    method is_playing->Logical  [abstract]
+    method load->this  [abstract]
+    method pause->this  [abstract]
+    method play->this  [abstract]
+    method play( is_repeating:Logical )->this  [abstract]
+    method position->Real64  [abstract]
+    method set_position( time:Real64 )->this  [abstract]
+    method set_volume( new_volume:Real64 )->this  [abstract]
+
+    method reset->this
+      # No effect on simple sounds; resets the playlist on SoundGroup
+      return this
+
+    method resume->this  [abstract]
+    method stop->this  [abstract]
+    method unload  [abstract]
+endClass
+
+class BasicSound : Sound
+  DEPENDENCIES
+$if not target("Android")
+    nativeHeader void*  PlasmacoreSound_create( RogueString* filepath, bool is_music );
+    nativeHeader void   PlasmacoreSound_delete( void* sound );
+    nativeHeader double PlasmacoreSound_duration( void* sound );
+    nativeHeader bool   PlasmacoreSound_is_playing( void* sound );
+    nativeHeader void   PlasmacoreSound_pause( void* sound );
+    nativeHeader void   PlasmacoreSound_play( void* sound, bool repeating );
+    nativeHeader double PlasmacoreSound_position( void* sound );
+    nativeHeader void   PlasmacoreSound_set_position( void* sound, double to_time );
+    nativeHeader void   PlasmacoreSound_set_volume( void* sound, double volume );
+$endIf
+
+  PROPERTIES
+    name         : String
+    filepath     : String
+    id           : Int32
+    is_music     : Logical
+    is_repeating : Logical
+
+  METHODS
+    method init( name, is_music=null:Logical?, is_repeating=false )
+      local asset_name = ""
+      if (not name.begins_with("Assets/"))
+        asset_name = "Assets/"
+        if (not name.begins_with("Sounds/")) asset_name += "Sounds/"
+      endIf
+
+      asset_name += name
+
+      filepath = find_sound( asset_name )
+      if (filepath)
+        if (not is_music.exists)
+          is_music = false
+$if target("Android")
+          if (File.size(filepath) >= 262_144) is_music = true
+$else
+          which (File.extension(filepath))
+            case "mp3": is_music = true
+          endWhich
+$endIf
+        endIf
+
+        this.is_music = is_music.value
+        load
+
+      else
+        println "Sound not found:" + name
+      endIf
+
+    method can_play->Logical
+      return (not is_playing)
+
+    method duration->Real64
+      if (id) return SoundManager[ id ].duration
+      return 0
+
+    method find_sound( asset_name:String )->String
+      local filepath = Plasmacore.asset_filepath( asset_name )
+      if (filepath) return filepath
+
+      filepath = Plasmacore.asset_filepath( asset_name + ".caf" )
+      if (filepath) return filepath
+
+      filepath = Plasmacore.asset_filepath( asset_name + ".mp3" )
+      if (filepath) return filepath
+
+      filepath = Plasmacore.asset_filepath( asset_name + ".wav" )
+      if (filepath) return filepath
+
+      filepath = Plasmacore.asset_filepath( asset_name + ".ogg" )
+      if (filepath) return filepath
+
+      return null
+
+    method is_finished->Logical
+      if (id) return SoundManager[ id ].is_finished
+      else    return true
+
+    method is_playing->Logical
+      if (id) return SoundManager[ id ].is_playing
+      else    return false
+
+    method load->this
+      if (not id) id = SoundManager.load( filepath, is_music )
+      return this
+
+    method on_cleanup
+      unload
+
+    method pause->this
+      if (id) SoundManager[ id ].pause
+      return this
+
+    method play->this
+      if (Sound.mute) return this
+      if (id) SoundManager[ id ].play( is_repeating )
+      return this
+
+    method play( is_repeating )->this
+      return play
+
+    method position->Real64
+      if (id) return SoundManager[ id ].position
+      else    return 0
+
+    method set_position( time:Real64 )->this
+      if (id) SoundManager[ id ].set_position( time )
+      return this
+
+    method set_volume( new_volume:Real64 )->this
+      if (System.os != "emscripten" and id) SoundManager[ id ].set_volume( new_volume )
+      return this
+
+    method resume->this
+      # Resumes playing the sound only if it was previously paused
+      if (id) SoundManager[ id ].resume
+      return this
+
+    method stop->this
+      if (id) SoundManager[ id ].stop
+      return this
+
+    method unload
+      SoundManager.unload( id )
+      id = 0
+endClass
+
+class SoundGroup : Sound
+  # Manages a group of related Sound objects.  Intended for being able to play the same
+  # sound multiple times concurrently and to play variations of a sound either sequentially
+  # or in a random order.
+  #
+  # By default each call to play() plays the next sound in order.
+
+  PROPERTIES
+    random         : Logical
+    # A sound is randomly picked each time.
+
+    random_order   : Logical
+    # Sounds play in a random order, with each sound playing once before there are
+    # any repeats.  The order is reshuffled each time after all sounds have been played.
+
+    autoplay       : Logical
+    # Automatically plays the next sound when the previous one is finished.  play() must
+    # still be called once to kick things off.
+
+    replay_last    : Logical
+    # Keep replaying the last sound when all other sounds have been played.  Call reset()
+    # to have the next play start from the first sound again.
+
+    sounds          = Sound[]
+    playlist        = Sound[]
+    autoplay_task   : Task
+
+  METHODS
+    method init( name:String, channels=1:Int32, is_music=null:Logical? )
+      loop (channels) sounds.add( Sound(name,is_music) )
+
+    method init( random=false, random_order=false, replay_last=false, autoplay=false )
+
+    method add( sound:Sound )->this
+      sounds.add( sound )
+      return this
+
+    method autoplay_monitor [task]
+      loop
+        if (is_finished) play
+        yield
+      endLoop
+
+    method can_play->Logical
+      if (playlist.count)
+        if ((forEach in playlist).can_play) return true
+      else
+        if ((forEach in sounds).can_play) return true
+      endIf
+      return false
+
+    method duration->Real64
+      if (sounds.count) return sounds.first.duration
+      return 0.0
+
+    method is_finished->Logical
+      # Returns true if all sounds are finished.
+      if (not ((forEach in sounds).is_finished)) return false
+      return true
+
+    method is_playing->Logical
+      # Returns true if any sound is playing.
+      if ((forEach in sounds).is_playing) return true
+      return false
+
+    method load->this
+      (forEach in sounds).load
+      return this
+
+    method pause->this
+      forEach (sound in sounds) sound.pause
+      return this
+
+    method play->this
+      if (Sound.mute) return this
+      if (not playlist.count) playlist.add( sounds )
+      if (random or random_order) playlist.shuffle
+
+      forEach (sound in playlist)
+        if (sound.can_play)
+          sound.play
+          playlist.remove( sound )
+          escapeForEach
+        endIf
+      endForEach
+
+      if (random)
+        playlist.clear
+      else
+        if (playlist.count == 0 and replay_last and sounds.count)
+          playlist.add( sounds.last )
+        endIf
+      endIf
+
+      if (autoplay and not autoplay_task)
+        autoplay_task = autoplay_monitor
+        autoplay_task.start
+      endIf
+
+      return this
+
+    method play( autoplay )->this
+      return play
+
+    method position->Real64
+      forEach (sound in sounds)
+        if (sound.is_playing) return sound.position
+      endForEach
+      return 0.0
+
+    method reset->this
+      playlist.clear
+      return stop
+
+    method resume->this
+      (forEach in sounds).resume
+      return this
+
+    method set_position( time:Real64 )->this
+      forEach (sound in sounds)
+        if (sound.is_playing) sound.set_position( time ); escapeForEach
+      endForEach
+      return this
+
+    method set_volume( new_volume:Real64 )->this
+      (forEach in sounds).set_volume( new_volume )
+      return this
+
+    method stop->this
+      if (autoplay_task)
+        autoplay_task.stop
+        autoplay_task = null
+      endIf
+      forEach (sound in sounds) sound.stop
+      return this
+
+    method unload
+      (forEach in sounds).unload
+
+endClass
+
+$if target("Android")
+# Android uses direct message sending to avoid having to go from Rogue -> C -> Java for each call.
+class SoundData
+  PROPERTIES
+    filepath  : String
+    is_music  : Logical
+    is_paused : Logical
+    repeating : Logical
+    player_id : Int32
+
+  METHODS
+    method init( filepath, is_music )
+      local reply = Message("Sound.create").set("filepath",filepath).set( "is_music",is_music).send
+      if (reply) player_id = reply.int32( "id" )
+
+    method duration->Real64
+      # In seconds
+      local reply = Message("Sound.duration").set("id",player_id).send
+      if (reply) return reply.real64( "duration" )
+      else       return 0
+
+    method is_finished->Logical
+      if (is_paused) return false
+      return not is_playing
+
+    method is_playing->Logical
+      if (is_paused) return false
+      local reply = Message("Sound.is_playing").set("id",player_id).send
+      if (reply) return reply.logical( "is_playing" )
+      else       return false
+
+    method pause
+      if (not is_paused and is_playing)
+        is_paused = true
+        Message( "Sound.pause" ).set( "id", player_id ).send
+      endIf
+
+    method play( repeating )
+      is_paused = false
+      Message( "Sound.play" ).set( "id", player_id ).set( "is_repeating", repeating ).send
+
+    method position->Real64
+      local reply = Message("Sound.position").set("id",player_id).send
+      if (reply) return reply.real64( "position" )
+      else       return 0
+
+    method set_position( time:Real64 )
+      Message( "Sound.set_position" ).set( "id", player_id ).set( "position", time ).send
+
+    method set_volume( new_volume:Real64 )
+      Message( "Sound.set_volume" ).set( "id", player_id ).set( "volume", new_volume ).send
+
+    method resume
+      if (is_paused) play( repeating )
+
+    method stop
+      pause
+      is_paused = false
+      position = 0
+
+    method unload
+      Message( "Sound.unload" ).set( "id", player_id ).send
+      player_id = 0
+endClass
+
+$else
+# For every platform except Android.
+class SoundData
+  PROPERTIES
+    filepath  : String
+    is_music  : Logical
+    is_paused : Logical
+    repeating : Logical
+    native "void* player;"
+
+  METHODS
+    method init( filepath, is_music )
+      native @|$this->player = PlasmacoreSound_create( $filepath, $is_music );
+
+    method duration->Real64
+      return native( "PlasmacoreSound_duration( $this->player )" )->Real64
+
+    method is_finished->Logical
+      if (is_paused) return false
+      return not is_playing
+
+    method is_playing->Logical
+      if (is_paused) return false
+      return native( "PlasmacoreSound_is_playing( $this->player )" )->Logical
+
+    method pause
+      if (not is_paused and is_playing)
+        is_paused = true
+        native @|PlasmacoreSound_pause( $this->player );
+      endIf
+
+    method play( repeating )
+      is_paused = false
+      native @|PlasmacoreSound_play( $this->player, $repeating );
+
+    method position->Real64
+      return native( "PlasmacoreSound_position( $this->player )" )->Real64
+
+    method set_position( time:Real64 )
+      native @|PlasmacoreSound_set_position( $this->player, $time );
+
+    method set_volume( new_volume:Real64 )
+      native @|PlasmacoreSound_set_volume( $this->player, $new_volume );
+
+    method resume
+      if (is_paused) play( repeating )
+
+    method stop
+      pause
+      is_paused = false
+      position = 0
+
+    method unload
+      native @|PlasmacoreSound_delete( $this->player );
+              |$this->player = 0;
+endClass
+$endIf
+
+class SoundManager [singleton]
+  PROPERTIES
+    sound_data            = SoundData[]
+    free_sound_data_slots = Int32[]
+
+  METHODS
+    method init
+      sound_data.add( null )  # Prevent '0' from being a valid id
+
+    method get( id:Int32 )->SoundData
+      if (id < 0 or id >= sound_data.count) return null
+      return sound_data[ id ]
+
+    method is_loading->Logical
+      $if target("Android")
+      local reply = Message("SoundManager.is_loading").send
+      return (reply and reply.logical("is_loading"))
+      $else
+        return false
+      $endIf
+
+    method load( filepath:String, is_music:Logical )->Int32
+      local id : Int32
+
+      local data = SoundData( filepath, is_music )
+
+      if (free_sound_data_slots.count)
+        id = free_sound_data_slots.remove_last
+        sound_data[ id ] = data
+      else
+        id = sound_data.count
+        sound_data.add( data )
+      endIf
+
+      return id
+
+    method unload( id:Int32 )
+      if (id < 0 or id >= sound_data.count) return
+
+      local data = sound_data[ id ]
+      sound_data[ id ] = null
+      free_sound_data_slots.add( id )
+
+      if (data) data.unload
+
+endClass
+
+

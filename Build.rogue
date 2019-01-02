@@ -1,0 +1,6 @@
+routine rogo_demo
+  println @|Type 'rogo demo' to run this action. You can implement custom actions
+           |for your project by defining new rogo_xyz routines in this file
+           |(Build.rogue) or in BuildLocal.rogue.
+endRoutine
+

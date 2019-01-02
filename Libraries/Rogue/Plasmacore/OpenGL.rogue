@@ -1,0 +1,15 @@
+# OpenGL wrapper.
+# Currently many OpenGL commands are embedded in Display.rogue.  Those can be shifted
+# here over time as a separation of concerns.
+class OpenGL [singleton]
+  METHODS
+    method log_errors( where="":String )
+      native @|GLenum error_code = glGetError();
+              |if (error_code) ROGUE_LOG( "OpenGL error %s: %d\n", $where->utf8, error_code );
+
+    method max_texture_size->Int32
+      native @|GLint result = 0;
+              |glGetIntegerv( GL_MAX_TEXTURE_SIZE, &result );
+              |return (RogueInt32) result;
+endClass
+

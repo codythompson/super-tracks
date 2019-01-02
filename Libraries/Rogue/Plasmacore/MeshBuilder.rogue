@@ -1,0 +1,65 @@
+module Plasmacore
+
+class MeshBuilder
+  PROPERTIES
+    positions : XY[]
+    uvs       : XY[]
+    colors    : Color[]
+
+
+    is_clockwise = true
+    is_linked    : Logical
+
+    render_mode : RenderMode?
+    shader      : Shader
+
+  METHODS
+    method init
+      init( &linked=false )
+
+    method init( linked:Logical )
+      init( 10, linked )
+
+    method init( vertex_capacity:Int32, &linked )
+      is_linked = linked
+      ensure positions( vertex_capacity )
+      ensure uvs( vertex_capacity )
+      ensure colors( vertex_capacity )
+
+    method add( position:XY, color=Color.WHITE:Color )->this
+      positions.add( position )
+      colors.add( color )
+      return this
+
+    method add( position:XY, uv:XY, color=Color.WHITE:Color )->this
+      positions.add( position )
+      uvs.add( uv )
+      colors.add( color )
+      return this
+
+    method clear( &cw, &ccw )->this
+      positions.clear
+      uvs.clear
+      colors.clear
+      is_clockwise = (cw or not ccw)
+      return this
+
+    method fill( texture:Texture, render_mode=null:RenderMode?, shader=null:Shader )
+      render_mode = ?:{ render_mode || this.render_mode || texture.default_render_mode }
+      shader = ?:{ shader || this.shader || texture.default_shader }
+      Display.fill_textured_mesh( this, texture, render_mode.value, shader )
+
+    method fill( render_mode=null:RenderMode?, shader=null:Shader )
+      render_mode = ?:{ render_mode || this.render_mode || RenderMode.OPAQUE_SHAPE }
+      shader = ?:{ shader || this.shader || ImageShader.COLOR }
+      Display.fill_solid_mesh( this, render_mode.value, shader )
+
+    method set_clockwise->this
+      is_clockwise = true
+      return this
+
+    method set_counter_clockwise->this
+      is_clockwise = false
+      return this
+endClass
+

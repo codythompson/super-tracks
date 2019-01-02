@@ -1,0 +1,30 @@
+uses Plasmacore
+
+class Canvas : Image
+  PROPERTIES
+    texture       : Texture
+    render_target : RenderTarget
+
+  METHODS
+    method init( w:Int32, h:Int32 )
+      # Placeholder values
+      data = ColorFillImageData
+      original_size = XY(w,h)
+      size = original_size
+
+    method init( size )
+      init( size.x, size.y )
+
+    method is_blank->Logical
+      return (texture is null)
+
+    method render_target->RenderTarget
+      if (not texture)
+        texture = Texture( this.size )
+        init( texture )
+      endIf
+      if (not @render_target) render_target = RenderTarget( texture.render_target_id )
+      return @render_target
+
+endClass
+

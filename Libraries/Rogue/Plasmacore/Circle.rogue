@@ -1,0 +1,118 @@
+module Plasmacore
+
+class Circle( position:XY, radius:Real64 ) [compound]
+  METHODS
+    method at( angle:Radians )->XY
+      # Returns the point along the edge of the circle at the given angle.
+      #
+      # Example:
+      #   one_oclock = circle.at( 2*Radians(pi/12) )
+      return position + XY( radius, angle )
+
+    method at( angle:Degrees )->XY
+      # Returns the point along the edge of the circle at the given angle.
+      #
+      # Example:
+      #   one_oclock = circle.at( Degrees(360.0/12.0) )
+      return position + XY( radius, angle )
+
+    method contains( point:XY )->Logical
+      return (point - position).magnitude_squared <= radius^2
+
+$if (not target("Console"))
+    method draw( color:Color, segments=(1.0/4.0):Real64 )->this
+      # Draws an outline of the given circle in the given color.
+      #
+      # Parameters
+      #   color
+      #     The color to draw the circle in.
+      #
+      #   segments [default: (1.0/4.0)]
+      #     If whole - the number of segments
+      #     If fractional -  segments *= circumference (1/8 is a rougher circle than 1/4)
+      #
+      if (segments < 1.0)
+        local circ = radius * 2 * pi
+        segments = (circ * segments).floor
+      endIf
+      local angle_step = pi * 2 / segments
+      if (angle_step > pi/8) angle_step = pi/8
+      local first = at(Radians(0))
+      local pt1 = first
+      forEach (angle in angle_step..2*pi step angle_step)
+        local pt2 = at(Radians(angle))
+        Line(pt1,pt2).draw( color )
+        pt1 = pt2
+      endForEach
+
+      Line(pt1,first).draw( color )
+
+      return this
+
+    method fill( color:Color, segments=(1.0/4.0):Real64 )->this
+      return fill( Colors(color), segments )
+
+    method fill( colors:Colors, segments=(1.0/4.0):Real64 )->this
+      # Fills the given circle with the given color or colors.
+      # Can use Colors(inner,outer)
+      #
+      # Parameters
+      #   color
+      #     The color to fill the circle with.
+      #
+      #   segments [default: (1.0/4.0)]
+      #     If whole - the number of segments
+      #     If fractional -  segments *= circumference (1/8 is a rougher circle than 1/4)
+      if (colors.count == 2) colors = Colors( colors.b, colors.b, colors.a )
+
+      if (segments < 1.0)
+        local circ = radius * 2 * pi
+        segments = (circ * segments).floor
+      endIf
+      local angle_step = pi * 2 / segments
+      if (angle_step > pi/8) angle_step = pi/8
+      local first = at(Radians(0))
+      local pt1 = first
+      forEach (angle in angle_step..2*pi step angle_step)
+        local pt2 = at(Radians(angle))
+        Triangle(pt1,pt2,position).fill( colors )
+        pt1 = pt2
+      endForEach
+
+      Triangle(pt1,first,position).fill( colors )
+
+      return this
+$endIf
+
+    method intersects( box:Box )->Logical
+      return box.intersects( this )
+
+    method intersects( other:Circle )->Logical
+      local delta = (position - other.position).magnitude_squared
+      return (delta <= (radius + other.radius) ^ 2)
+
+    method intersects( quad:Quad )->Logical
+      return quad.intersects( this )
+
+    method intersects( line:Line )->Logical
+      return line.intersects( this )
+
+    method intersects( triangle:Triangle )->Logical
+      return triangle.intersects( this )
+
+    method operator+( delta:XY )->Circle
+      return Circle( position+delta, radius )
+
+    method operator-( delta:XY )->Circle
+      return Circle( position-delta, radius )
+
+    method operator*( scale:Real64 )->Circle
+      return Circle( position*scale, radius*scale )
+
+    method operator/( scale:Real64 )->Circle
+      return Circle( position/scale, radius/scale )
+
+    method to->String
+      return "(@$, r:$)" (position,radius)
+endClass
+

@@ -1,0 +1,26 @@
+module Plasmacore::UI
+
+class SupportsTheme<<$Theme>> [aspect]
+  METHODS
+    method dispatch_theme_draw( _theme:$Theme ) [propagated]
+      _theme.draw( this )
+endClass
+
+class Theme
+  METHODS
+    method invoke_draw( component:Component ) [propagated]
+      component.dispatch_theme_draw( this )
+
+    method draw( component:Component )
+      #component.bounds.draw( Color.WHITE )
+
+    method draw( button:Button )
+      button.bounds.fill( Color.BLUE )
+
+    method draw( layout:Layout )
+      noAction
+
+    method draw( panel:Panel )
+      panel.bounds.fill( Color.WHITE )
+endClass
+

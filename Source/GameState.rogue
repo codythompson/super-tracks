@@ -1,0 +1,37 @@
+uses Plasmacore
+
+class GameState : State<<MainScreen>>
+  # GLOBAL PROPERTIES
+  #   colors = Color[][
+  #     Color.BLACK,
+  #     Color.BLUE,
+  #     Color.BROWN,
+  #     Color.CYAN,
+  #     Color.DARK_GRAY,
+  #     Color.DARK_GREEN,
+  #     Color.GRAY,
+  #     Color.GREEN,
+  #     Color.LIGHT_GRAY,
+  #     Color.LIME,
+  #     Color.MAGENTA,
+  #     Color.ORANGE,
+  #     Color.PURPLE,
+  #     Color.RED,
+  #     Color.TRANSPARENT,
+  #     Color.YELLOW,
+  #     Color.WHITE
+  #   ]
+
+  PROPERTIES
+    tileMap = TileMapLayout(100, 100, XY(100, 100))
+    tileDrawer:TileDrawer
+
+  METHODS
+    method on_start
+      tileDrawer = StupidTileDrawer(StupidTileDrawer.level_1)
+      # tileDrawer = StupidTileDrawer("++++++++")
+
+    method on_draw
+      Display.clear( Color.DARK_GRAY )
+      tileMap.draw(tileDrawer.drawFunc)
+endClass

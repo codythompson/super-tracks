@@ -1,0 +1,4 @@
+module Plasmacore::UI
+
+class Panel : Layout;
+

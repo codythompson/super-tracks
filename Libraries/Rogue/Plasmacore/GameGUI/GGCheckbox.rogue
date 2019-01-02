@@ -1,0 +1,23 @@
+uses Plasmacore
+
+class GGCheckbox : GGButton
+  METHODS
+    method init( fixed_size )
+      size = fixed_size
+
+    method init( image, selected_image=null )
+      if (image)
+        fixed_size = image.size
+        size = fixed_size
+
+        if (not selected_image) selected_image = image.cloned.set_tint( 0.2, Color.BLACK )
+        pressed_image  = selected_image
+        targeted_image = image.cloned.set_tint( 0.5, Color.WHITE )
+        disabled_image = image.cloned.set_tint( 0.5, Color.BLACK )
+      endIf
+
+    method is_toggle->Logical
+      return true
+
+endClass
+

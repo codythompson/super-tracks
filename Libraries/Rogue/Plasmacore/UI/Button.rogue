@@ -1,0 +1,5 @@
+module Plasmacore::UI
+
+class Button : Component
+  METHODS
+endClass

@@ -1,0 +1,198 @@
+module Plasmacore
+
+class Texture
+  PROPERTIES
+    filepath         : String
+    id               : Int32    # id in loading display context
+    image_size       : XY       # In pixels
+    texture_size     : XY       # In pixels
+    uv_size          : XY       # (1,1) in most cases
+    is_opaque        : Logical
+    should_unload    : Logical  # Used in Screen to manage the loading and unloading of images
+    reference_count  : Int32    # Prevents automatic unloading in image reloading system
+
+    render_target_id : Int32
+
+  GLOBAL METHODS
+    method create( name:String )->Texture
+      local texture = Display.textures_by_name[ name ]
+      if (texture)
+        texture.load
+        return texture
+      endIf
+
+      local asset_name = ""
+      if (not name.begins_with("Assets/"))
+        if (name.begins_with("Images/"))
+          asset_name = "Assets/"
+        else
+          asset_name = "Assets/Images/"
+        endIf
+      endIf
+      asset_name += name
+
+      local filepath = Plasmacore.asset_filepath( asset_name )
+      if (filepath)
+        texture = Display.textures_by_name[ filepath ]
+        if (texture)
+          texture.load
+          return texture
+        endIf
+
+        texture = Texture( File(filepath) )
+        Display.textures_by_name[ filepath ] = texture
+        texture.load
+      else
+        Log.println "Image not found: " + name
+        texture = Texture( Bitmap(1,1,Color.WHITE) )
+      endIf
+
+      Display.textures_by_name[ name ] = texture
+      return texture
+
+  METHODS
+    method init( file:File )
+      filepath = file.filepath
+      load
+
+    method init( bitmap:Bitmap )
+      set( bitmap )
+
+    method init( image_size )
+      # Creates an off-screen buffer / render target texture
+      local width  = image_size.x->Int32
+      local height = image_size.y->Int32
+
+      local wp2 = width.to_power_of_two
+      local hp2 = height.to_power_of_two
+      texture_size = XY( wp2, hp2 )
+      uv_size = image_size / texture_size
+
+      native @|GLint original_framebuffer_id;
+              |glGetIntegerv( GL_FRAMEBUFFER_BINDING, &original_framebuffer_id );
+              |
+              |GLuint fb_id;
+              |glGenFramebuffers( 1, &fb_id );
+              |glBindFramebuffer( GL_FRAMEBUFFER, fb_id );
+              |$this->render_target_id = (RogueInt32) fb_id;
+              |
+              |GLuint tx_id;
+              |glGenTextures( 1, &tx_id );
+              |glBindTexture( GL_TEXTURE_2D, tx_id );
+              |$id = tx_id;
+              |
+              |glTexImage2D( GL_TEXTURE_2D, 0, GL_RGBA, $wp2, $hp2, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL );
+              |glFramebufferTexture2D( GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, $id, 0 );
+              |
+              |if (GL_FRAMEBUFFER_COMPLETE != glCheckFramebufferStatus(GL_FRAMEBUFFER))
+              |{
+              |  ROGUE_LOG( "Failed to create offscreen buffer.\n" );
+              |  glDeleteFramebuffers( 1, &fb_id );
+              |  $this->render_target_id = 0;
+              |}
+              |
+              |glBindFramebuffer( GL_FRAMEBUFFER, original_framebuffer_id );
+
+      OpenGL.log_errors( "creating offscreen buffer" )
+
+    method on_cleanup
+      unload
+
+    method default_render_mode->RenderMode
+      return ?:{ is_opaque:RenderMode.OPAQUE_IMAGE || RenderMode.ALPHA_IMAGE }
+
+    method default_shader->Shader
+      return ImageShader.TEXTURE
+
+    method image_height->Int32 [macro]
+      return this.image_size.y
+
+    method image_width->Int32 [macro]
+      return this.image_size.x
+
+    method is_loaded->Logical
+      return id?
+
+    method load->Logical
+      should_unload = false
+      if (id) return true
+      if (filepath is null) return false
+
+      Log.println "Loading " + filepath
+      local bitmap = Bitmap( File(filepath) )
+      image_size = bitmap.size
+
+      is_opaque = bitmap.is_opaque
+      if (not is_opaque) bitmap.premultiply_alpha
+      bitmap.expand_to_power_of_two
+
+      texture_size = bitmap.size
+      uv_size = image_size / texture_size
+
+      id = Display.define_texture( id, bitmap, 32 )
+      if (not id) return this
+
+      Display.texture_list.add( this )
+
+      return true
+
+    method set( bitmap:Bitmap )
+      local original_bitmap = bitmap
+
+      is_opaque = bitmap.is_opaque
+      if (not is_opaque)
+        bitmap = bitmap.cloned
+        bitmap.premultiply_alpha
+      endIf
+
+      if (not bitmap.size.is_power_of_two)
+        if (bitmap is original_bitmap) bitmap = bitmap.cloned
+        bitmap.expand_to_power_of_two
+      endIf
+
+      image_size = bitmap.size
+
+      if (not id)
+        # First time being defined - otherwise this same texture is being redefined
+        # from an updated bitmap.
+        Display.texture_list.add( this )
+      endIf
+
+      texture_size = bitmap.size
+      uv_size = image_size / texture_size
+
+      id = Display.define_texture( id, bitmap, 32 )
+
+    method should_unload->Logical
+      return @should_unload and reference_count == 0
+
+    method texture_height->Int32 [macro]
+      return this.texture_size.y
+
+    method texture_width->Int32 [macro]
+      return this.texture_size.x
+
+    method unload->this
+      should_unload = false
+
+      if (id)
+        Display.delete_texture( id )
+        Display.texture_list.remove( this )
+        id = 0
+      endIf
+
+      if (render_target_id)
+        native @|GLuint fb_id = (GLuint) $this->render_target_id;
+                |glDeleteFramebuffers( 1, &fb_id );
+        render_target_id = 0
+      endIf
+      return this
+
+    method uv_height->Real64 [macro]
+      return this.uv_size.y
+
+    method uv_width->Real64 [macro]
+      return this.uv_size.x
+endClass
+
+

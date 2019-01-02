@@ -1,0 +1,74 @@
+module Plasmacore
+
+class Mesh
+  GLOBAL PROPERTIES
+    cube : Mesh
+
+  GLOBAL METHODS
+    method cube->Mesh
+      if (@cube) return @cube
+
+      #          0-----1
+      #         /|    /|
+      #        4-----5 |
+      #        | |   | |
+      #        | 3 --|-2
+      #        |/    |/
+      #        7---- 6
+      local corners = Vertex[]
+      corners.add( Vertex(-1,-1,-1) )
+      corners.add( Vertex( 1,-1,-1) )
+      corners.add( Vertex( 1, 1,-1) )
+      corners.add( Vertex(-1, 1,-1) )
+      corners.add( Vertex(-1,-1, 1) )
+      corners.add( Vertex( 1,-1, 1) )
+      corners.add( Vertex( 1, 1, 1) )
+      corners.add( Vertex(-1, 1, 1) )
+
+      @cube = Mesh()
+
+      # TODO - is it even possible to use a mesh for this?
+      #@cube.add( corners[4] ).add( corners[5] ).add( corners[6] ).add( corners[1] )
+      #@cube.add( corners[0] ).add( corners[3] ).add( corners[2] ).add( corners[1] )
+
+      return @cube
+
+  PROPERTIES
+    positions    : Real32[]
+    uvs          : Real32[]
+    colors       : Int32[]
+    vertex_count : Int32
+
+    native "GLuint position_buffer;"
+
+  METHODS
+    method init( vertex_capacity=10:Int32 )
+      ensure positions( vertex_capacity * 3 )
+      ensure uvs( vertex_capacity * 2 )
+      ensure colors( vertex_capacity )
+
+    method add( v:Vertex )->this
+      ++vertex_count
+      positions.reserve( 3 ).add( v.xyz.x ).add( v.xyz.y ).add( v.xyz.z )
+      return this
+
+    method add( v1:Vertex, v2:Vertex, v3:Vertex )->this
+      return add( v1 ).add( v2 ).add( v3 )
+
+    method on_cleanup
+      native @|if ($this->position_buffer)
+              |{
+              |  glDeleteBuffers( 1, &$this->position_buffer );
+              |}
+
+    method prepare
+      native @|if ( !$this->position_buffer )
+              |{
+              |  glGenBuffers( 1, &$this->position_buffer );
+              |  glBindBuffer( GL_ARRAY_BUFFER, $this->position_buffer );
+              |  glBufferData( GL_ARRAY_BUFFER, sizeof(GL_FLOAT) * $positions->count, $positions->data->as_real32s, GL_STATIC_DRAW );
+              |}
+
+
+endClass
+

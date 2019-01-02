@@ -1,0 +1,175 @@
+module Plasmacore
+
+class State
+  GLOBAL METHODS
+    method operator+( a:State, b:State )->State
+      if (not a) return b
+      if (not b) return a
+      a.queue_state( b )
+      return a
+
+  PROPERTIES
+    screen                  : Screen
+
+    is_active             : Logical
+    needs_first_update    = true
+    previous_display_size : XY?
+
+    next_state            : State
+    prior_state           : State
+
+    actions : ActionCmd
+
+  METHODS
+    method init( screen=null )
+
+    method after( e:KeyEvent )
+
+    method after( e:PointerEvent )
+
+    method after( e:ScrollEvent )
+
+    method after( e:TextEvent )
+
+    method after_draw
+
+    method after_resize
+
+    method after_update
+
+    method change_state( new_state:State )
+      screen.change_state( new_state )
+
+    method change_screen( new_screen:Screen )
+      screen.change_screen( new_screen )
+
+    method exit_state
+      screen.exit_state
+
+    method handle( e:KeyEvent )
+      on( e )
+      if (e.is_consumed) return
+
+      screen.handle( e )
+      if (e.is_consumed) return
+
+      after( e )
+
+    method handle( e:PointerEvent )
+      on( e )
+      if (e.is_consumed) return
+
+      screen.handle( e )
+      if (e.is_consumed) return
+
+      after( e )
+
+    method handle( e:ScrollEvent )
+      on( e )
+      if (e.is_consumed) return
+
+      screen.handle( e )
+      if (e.is_consumed) return
+
+      after( e )
+
+    method handle( e:TextEvent )
+      on( e )
+      if (e.is_consumed) return
+
+      screen.handle( e )
+      if (e.is_consumed) return
+
+      after( e )
+
+    method handle_draw
+      on_draw
+      screen.handle_draw
+      after_draw
+
+    method handle_resize
+      on_resize
+
+      local cur_screen = screen
+      if (not cur_screen.previous_display_size.exists or cur_screen.previous_display_size.value != Display.size)
+        cur_screen.handle_resize
+        cur_screen.previous_display_size = Display.size
+      endIf
+
+      after_resize
+
+    method handle_update
+      if (actions) actions = actions.update
+      on_update
+
+      screen.needs_first_update = false
+      screen.handle_update
+
+      after_update
+
+    method load_another_asset->Real64
+      return screen.load_another_asset
+
+    method load_assets
+      screen.load_assets
+
+    method on( e:KeyEvent )
+      noAction
+
+    method on( e:PointerEvent )
+      noAction
+
+    method on( e:ScrollEvent )
+      noAction
+
+    method on( e:TextEvent )
+      noAction
+
+    method on_draw
+      noAction
+
+    method on_finish
+      noAction
+
+    method on_prepare
+      noAction
+
+    method on_resize
+      noAction
+
+    method on_resume
+      noAction
+
+    method on_start
+      noAction
+
+    method on_suspend
+      noAction
+
+    method on_update
+      noAction
+
+    method push_state( new_state:State )
+      screen.push_state( new_state )
+
+    method queue_state( new_state:State )
+      if (screen)
+        if (not new_state.screen) new_state.screen = screen
+        screen.queue_state( new_state )
+      else
+        local cur = this
+        while (cur.next_state) cur = cur.next_state
+        cur.next_state = new_state
+      endIf
+
+    method set_screen( @screen )->this
+      return this
+
+endClass
+
+class State<<$ScreenType>> : State
+  METHODS
+    method screen->$ScreenType
+      return @screen as $ScreenType
+endClass
+

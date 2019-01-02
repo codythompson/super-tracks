@@ -1,0 +1,19 @@
+# Default data config file - customize as desired.
+#
+# PLATFORMS
+#   [Global]  - Use this category for attributes and settings
+#               that apply to all platforms.
+#   [Default] - Used when specific platform isn't defined, e.g.
+#               if [iOS] isn't defined then [Default] is used.
+#   [iOS]     - iOS-specific attributes, settings, and groups.
+#   [Android] - Android-specific attributes, settings, and groups.
+#   [macOS]   - Mac-specific attributes, settings, and groups.
+#   [Web]     - Web-specific attributes, settings, and groups.
+#   [Linux]   - Linux-specific attributes, settings, and groups.
+#
+# COMMANDS
+#   include <file or pattern>            # Include file in build
+#
+
+[Default]
+include **

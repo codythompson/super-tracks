@@ -1,0 +1,26 @@
+module Plasmacore
+
+class GGFiller : GGComponent
+  GLOBAL METHODS
+    method horizontal( weight=1.0:Real64 )->GGFiller
+      return GGFiller( XY(0,1), weight )
+
+    method vertical( weight=1.0:Real64 )->GGFiller
+      return GGFiller( XY(1,0), weight )
+
+  PROPERTIES
+    weight : Real64
+
+  METHODS
+    method init( fixed_size, weight=1.0 )
+
+    method horizontal_flex->Real64
+      if (fixed_size.x == 0) return weight
+      else                   return 0
+
+    method vertical_flex->Real64
+      if (fixed_size.y == 0) return weight
+      else                   return 0
+
+endClass
+

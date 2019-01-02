@@ -1,0 +1,181 @@
+uses  Plasmacore
+
+
+class GGButton : GGComponent
+  PROPERTIES
+    text                 : String
+    font                 : Font
+    color=Color.WHITE    : Color
+
+    image                : Image
+    pressed_image        : Image
+    targeted_image       : Image
+    selected_image       : Image
+    disabled_image       : Image
+
+    press_timer          = Timer(0.2,&expired)
+
+    is_pressed           : Logical
+    is_selected          : Logical
+    is_disabled          : Logical
+
+    on_press_callback    : Function(GGButton)
+    on_release_callback  : Function(GGButton)
+    on_select_callback   : Function(GGButton)
+    on_deselect_callback : Function(GGButton)
+
+  METHODS
+    method init( fixed_size )
+      size = fixed_size
+
+    method init( text, font=GGComponentManager.default_font, fixed_size=XY(0,0) )
+      size = fixed_size
+
+    method init( image, pressed_image=null )
+
+      if (image)
+        fixed_size = image.size
+        size = fixed_size
+
+        if (not pressed_image)  pressed_image  = selected_image
+        targeted_image = image
+        selected_image = pressed_image
+        disabled_image = image
+      endIf
+
+    method handle( e:PointerEvent )
+      GGComponentManager.pointer_position = e.position
+      if (GGComponentManager.pointer_focus and GGComponentManager.pointer_focus is not this)
+        GGComponentManager.pointer_focus.handle( e )
+        return
+      endIf
+
+      if (e.is_press)
+        if (this.contains(e) and GGComponentManager.pointer_focus is not this)
+          GGComponentManager.pointer_focus = this
+          is_pressed = true
+          press_timer.restart
+          on_press
+          if (on_press_callback) on_press_callback( this )
+        endIf
+
+      elseIf (e.is_release)
+        if (@is_pressed)
+          is_pressed = false
+          GGComponentManager.pointer_focus = null
+          on_release
+          if (on_release_callback) on_release_callback( this )
+
+          if (this.contains(e))
+            if (this.is_toggle)
+              this.is_selected = not this.is_selected
+              if (this.is_selected)
+                on_select
+                if (on_select_callback) on_select_callback( this )
+              else
+                on_deselect
+                if (on_deselect_callback) on_deselect_callback( this )
+              endIf
+            else
+              on_select
+              if (on_select_callback) on_select_callback( this )
+            endIf
+          endIf
+        endIf
+
+      elseIf (e.is_move)
+        if (not contains(e))
+          if (@is_pressed)
+            is_pressed = false
+            GGComponentManager.pointer_focus = null
+            on_release
+            if (on_release_callback) on_release_callback( this )
+          endIf
+        endIf
+      endIf
+
+    method is_pressed->Logical
+      return (@is_pressed or not press_timer.is_expired)
+
+    method is_targeted->Logical
+      return (GGComponentManager.pointer_position.exists and this.contains(GGComponentManager.pointer_position.value))
+
+    method is_toggle->Logical
+      return false
+
+    method on_draw
+      local img : Image
+      local c : Color
+
+      if (image)
+        if (is_pressed)
+          img = pressed_image
+        elseIf (is_selected)
+          img = selected_image
+        elseIf (is_targeted)
+          img = targeted_image
+        elseIf (is_disabled)
+          img = disabled_image
+        else
+          img = image
+        endIf
+      else
+        if (is_pressed)
+          c = 0xff8080ff
+        elseIf (is_targeted)
+          c = Color.BLUE
+        else
+          c = Color.BLACK
+        endIf
+      endIf
+
+      if (img)
+        img.anchor = Anchor.TOP_LEFT
+        img.draw( position )
+      else
+        bounds.fill( Color.WHITE )
+        bounds.cropped(2).fill( c )
+        if (is_toggle and is_selected)
+          bounds.cropped(6).fill( Color.WHITE )
+        endIf
+      endIf
+
+      if (text and font)
+        font.anchor = Anchor.CENTER
+        font.color = color
+        font.draw( text, bounds.center )
+      endIf
+
+    method on_press
+      noAction
+
+    method on_release
+      noAction
+
+    method on_select
+      noAction
+
+    method on_deselect
+      noAction
+
+    method on_press( @on_press_callback )->this
+      return this
+
+    method on_release( @on_release_callback )->this
+      return this
+
+    method on_select( @on_select_callback )->this
+      return this
+
+    method on_deselect( @on_deselect_callback )->this
+      return this
+
+    method set_press_time( duration:Real64 )->this
+      press_timer.duration = duration
+      return this
+
+    method set_text( @text, @font=GGComponentManager.default_font, @color=Color.WHITE )->this
+      return this
+
+endClass
+

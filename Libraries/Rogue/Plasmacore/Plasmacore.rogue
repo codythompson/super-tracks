@@ -1,0 +1,506 @@
+#==============================================================================
+# Plasmacore.rogue
+#==============================================================================
+
+$include "Anchor.rogue"
+$include "Bitmap.rogue"
+$include "BresenhamLineGenerator.rogue"
+$include "Box.rogue"
+$include "Box2D.rogue"
+$include "Circle.rogue"
+$include "Color.rogue"
+$include "JPEG.rogue"
+$include "Line.rogue"
+$include "Quad.rogue"
+$include "PNG.rogue"
+$include "Ray.rogue"
+$include "System.rogue"
+$include "Triangle.rogue"
+$include "XY.rogue"
+
+$if not target("Console")
+
+$if (target("Web")) nativeHeader #include <emscripten.h>
+
+$include "ActionCmd.rogue"
+$include "Angles.rogue"
+$include "Assets.rogue"
+$include "Canvas.rogue"
+$include "DefaultFont.rogue"
+$include "Display.rogue"
+$include "Event.rogue"
+$include "Font.rogue"
+$include "GameGUI"
+$include "Image.rogue"
+$include "ImageList.rogue"
+$include "ImageSheetBuilder.rogue"
+$include "iOS.rogue"
+$include "Keyboard.rogue"
+$include "Lighting.rogue"
+$include "Material.rogue"
+$include "Matrix.rogue"
+$include "Mesh.rogue"
+$include "MeshBuilder.rogue"
+$include "Messaging.rogue"
+$include "Model.rogue"
+$include "Layer.rogue"
+$include "Log.rogue"
+$include "OpenGL.rogue"
+$include "OverlayLog.rogue"
+$include "Pointer.rogue"
+$include "Polygon.rogue"
+$include "ProgressFn.rogue"
+$include "ProjectionMode.rogue"
+$include "Quaternion.rogue"
+$include "RenderMode.rogue"
+$include "RenderTarget.rogue"
+$include "Renderer.rogue"
+$include "RichText.rogue"
+$include "Shader.rogue"
+$include "Sound.rogue"
+$include "Sprite.rogue"
+$include "State.rogue"
+$include "SystemFont.rogue"
+$include "TargetValue.rogue"
+$include "Texture.rogue"
+$include "TileMapLayout.rogue"
+$include "UpdateTimer.rogue"
+$include "Vertex.rogue"
+$include "Screen.rogue"
+$include "Window.rogue"
+$include "XYZ.rogue"
+$include "XYZW.rogue"
+
+module Plasmacore
+
+class Plasmacore [essential singleton]
+  PROPERTIES
+    next_resource_id        = 1
+    display_screen_types      = StringTable<<TypeInfo>>()
+    global_update_callback  : Function()
+    global_update_timer     = UpdateTimer()
+    displays                = StringTable<<Display>>()
+
+    image_info_list         = ImageInfo[]
+    image_info_lookup       = Table<<String,ImageInfo>>()
+    image_group_info_lookup = Table<<String,ImageGroupInfo>>()
+    image_filters           = String[]
+
+    application_data_folder : String
+    user_data_folder        : String
+    cache_folder            : String
+
+    show_fps  : Logical
+    fps       : Int32
+    next_fps  : Int32
+    fps_timer = Timer(1)
+
+  METHODS
+    method init
+      Console.println "Initializing Plasmacore"
+
+      load_image_index
+
+      MessageManager.set_listener( "Application.on_launch",
+        function(m:Message)
+          if (m.contains("application_data_folder")) Plasmacore.application_data_folder = m.string("application_data_folder")
+          if (m.contains("user_data_folder"))        Plasmacore.user_data_folder = m.string("user_data_folder")
+          if (m.contains("cache_folder"))            Plasmacore.cache_folder = m.string("cache_folder")
+          #trace Plasmacore.application_data_folder
+          #trace Plasmacore.user_data_folder
+          #trace Plasmacore.cache_folder
+        endFunction
+      )
+
+      MessageManager.set_listener( "Display.on_render",
+        function(m:Message)
+          if (Plasmacore.show_fps)
+            ++Plasmacore.next_fps
+            if (Plasmacore.fps_timer.is_expired)
+              Plasmacore.fps = Plasmacore.next_fps
+              Plasmacore.next_fps = 0
+              Plasmacore.fps_timer.restart
+            endIf
+          endIf
+          local display_size = XY( m.int32("display_width"),m.int32("display_height") )
+          local viewport_size : XY
+          if (m.contains("viewport_width"))
+            viewport_size = XY( m.int32("viewport_width"),m.int32("viewport_height") )
+          else
+            viewport_size = display_size
+          endIf
+          local refresh_rate = m.int32( "refresh_rate", 60 )
+          Display( m.string("display_name") ).render( display_size, viewport_size, refresh_rate )
+        endFunction )
+
+      MessageManager.set_listener( "Display.on_graphics_lost",
+        function(m:Message)
+          Display( m.string("display_name") ).on_graphics_lost
+        endFunction )
+
+      MessageManager.set_listener( "Display.on_key_event",
+        function(m:Message)
+          local display   = Display( m.string("display_name") )
+          local keycode   = m.int32( "keycode" )
+          local syscode   = m.int32( "syscode" )
+          local is_repeat = m.logical( "is_repeat" )
+          local is_press  = m.logical( "is_press" )
+          if (not is_repeat) Keyboard.key_pressed[ keycode & 255 ] = is_press
+          local e = KeyEvent( keycode, syscode, is_press, is_repeat )
+          e.timestamp = m.timestamp
+          display.handle( e )
+        endFunction )
+
+      MessageManager.set_listener( "Display.on_pointer_event",
+        function(m:Message)
+          local display = Display( m.string("display_name") )
+          local x = m.int32("x")
+          local y = m.int32("y")
+          if (x or y)
+            # On mobile web, SDL sends mouse (pointer) events at (0,0) followed by finger (stylus) events
+            # at actual (x,y) coordinates. As a kludge we'll ignore pointer events at (0,0)
+            local scale = display.display_scale
+            local pos = XY(x,y) * scale - Display.offset
+            local delta = XY( m.real64("dx"), m.real64("dy") ) * scale
+            local e = PointerEvent( m.int32("type"), pos, delta, m.int32("index") )
+            e.timestamp = m.timestamp
+            Pointer.on( e )
+            display.handle( e )
+          endIf
+        endFunction )
+
+      MessageManager.set_listener( "Display.on_scroll_event",
+        function(m:Message)
+          local display = Display( m.string("display_name") )
+          local scale = display.display_scale
+          local delta = XY( m.real64("dx"), m.real64("dy") ) * scale
+
+          local e = ScrollEvent( delta )
+          e.timestamp = m.timestamp
+          display.handle( e )
+        endFunction )
+
+      MessageManager.set_listener( "Input.on_stylus_event",
+        # Stylus/touch event not associated with any display.  Dispatch to each display,
+        # mapping normalized coordinates to each display's size.
+        function(m:Message)
+          local pos = XY( m.real64("x"), m.real64("y") )
+          local type = m.int32( "type" )
+          local index = m.int32( "index" )
+          forEach (display in Plasmacore.displays)
+            if (display.is_configured)
+              local e = PointerEvent( type, pos*Display.size-Display.offset, XY(0,0), index )
+              e.timestamp = m.timestamp
+              Pointer.on( e )
+              display.handle( e )
+            endIf
+          endForEach
+        endFunction )
+
+      MessageManager.set_listener( "Display.on_text_event",
+        function(m:Message)
+          local display    = Display( m.string("display_name") )
+          local character  = m.int32( "character" )->Character
+          local text       : String
+          if (m.contains("text")) text = m.string( "text" )
+          local e = TextEvent( character, text )
+          e.timestamp = m.timestamp
+          display.handle( e )
+        endFunction )
+
+    method add_image_filter( filter:String )->this
+      if (not (filter.contains('*') or filter.contains('?')))
+        filter = "**$**" (filter)
+      endIf
+      image_filters.add( filter )
+      filter_images
+      return this
+
+    method application_data_folder->String
+      # iOS: Application data that is not accessible to the user but is still backed up
+      # on iCloud.
+      # Other OS: general data folder
+      $if not target("Android")
+        if (not @application_data_folder)
+          application_data_folder = native( "Plasmacore_get_application_data_folder()" )->String
+        endIf
+      $endIf
+      return @application_data_folder
+
+    method asset_file( name:String )->File
+      local filepath = asset_filepath( name )
+      if (not filepath) return null
+      return File( filepath )
+
+    method asset_filepath( name:String )->String
+      if (File.exists(name)) return name   # already correct
+
+      # may return null
+      $if target("Android")
+        local result = Message( "Plasmacore.find_asset" ).set( "filepath", name ).send
+        if (not result) return null
+        if (not result.contains("filepath")) return null
+        return result.string( "filepath" )
+      $else
+        return native( "Plasmacore_find_asset( $name )" )->String
+      $endIf
+
+    method cache_folder->String
+      # iOS: Files that can be removed by the OS as needed.
+      # Other OS: general data folder
+      # Android cache folder is sent in Application.on_launch
+      $if not target("Android")
+        if (not @cache_folder)
+          $if target("iOS")
+            cache_folder = application_data_folder + "/Caches"
+          $else
+            cache_folder = application_data_folder + "/Cache"
+            if (not File.exists(@cache_folder)) File.create_folder( @cache_folder )
+          $endIf
+        endIf
+      $endIf
+      return @cache_folder
+
+    method clear_image_filters->this
+      image_filters.clear
+      return this
+
+    method create_resource_id->Int32
+      ++next_resource_id
+      return (next_resource_id - 1)
+
+    method data_file( name:String )->File
+      return asset_file( "Assets/Data/" + name )
+
+    method data_filepath( name:String )->String
+      return asset_filepath( "Assets/Data/" + name )
+
+    method display( name:String )->Display
+      local result = displays[ name ]
+      if (not result)
+        result = Display()
+        result.name = name
+        Plasmacore.displays[ name ] = result
+      endIf
+      return result
+
+    method filter_images
+      image_info_lookup.clear
+
+      # Full filepath
+      forEach (image_info in image_info_list)
+        local name = image_info.name
+        image_info_lookup[ name ] = image_info
+      endForEach
+
+      # For A/B/C.png, add B/C.png and C.png as separate entries as long as they
+      # do not conflict with any existing entry.  If there is a conflict, mark the
+      # entry as null rather than creating an arbitrary default
+      forEach (image_info in image_info_list)
+        local name = image_info.name
+        if (filter_fn_keep(name))
+          while (name.contains('/'))
+            name = name.after_first( '/' )
+            if (image_info_lookup.contains(name))
+              image_info_lookup[ name ] = null
+            else
+              image_info_lookup[ name ] = image_info
+            endIf
+          endWhile
+        endIf
+      endForEach
+
+      # Remove any entries that were in conflict
+      forEach (key in image_info_lookup.keys)
+        if (image_info_lookup[key] is null) image_info_lookup.remove( key )
+      endForEach
+
+    method filter_fn_keep( name:String )->Logical
+      if (not image_filters.count) return true
+      forEach (filter in image_filters)
+        if (File.matches_wildcard_pattern(name,filter)) return true
+      endForEach
+      return false
+
+    method find_image_info( name:String )->ImageInfo
+      local info = image_info_lookup[ name ]
+      if (info) return info.load
+
+      println "No such image: " + name
+
+      return null
+
+    method global_update
+      global_update_timer.update
+      while (global_update_timer.tick)
+        if (global_update_callback) global_update_callback()
+      endWhile
+
+    method get_image_group_info( filepath:String )->ImageGroupInfo
+      local info = image_group_info_lookup[ filepath ]
+      if (info) return info
+
+      info = ImageGroupInfo( filepath )
+      image_group_info_lookup[ filepath ] = info
+      return info
+
+    method load_image_index
+      local image_index = JSON.load_table( asset_file("Assets/Images/ImageIndex.json") ).decompressed
+
+      image_info_list.clear
+      image_group_info_lookup.clear
+
+      # Image groups (image sheets / texture atlases)
+      forEach (group_info in image_index//groups)
+        local group = get_image_group_info( group_info//filepath->String )
+        forEach (image in group_info//images)
+          local name = image->String
+          image_info_list.add( ImageInfo(name, group) )
+        endForEach
+      endForEach
+
+      # Standalone images (textures)
+      forEach (image_info in image_index//standalone)
+        image_info_list.add( ImageInfo(image_info) )
+      endForEach
+
+      filter_images
+
+    method on_global_update( global_update_callback )
+      noAction
+
+    method set_image_filter( filter:String )->this
+      clear_image_filters.add_image_filter( filter ).filter_images
+      return this
+
+    method set_show_fps( setting:Logical )->this
+      if (setting == show_fps) return this
+
+      @show_fps = setting
+      fps = 0
+      fps_timer.restart
+      return this
+
+    method user_data_folder->String
+      $if not target("Android")
+        if (not @user_data_folder)
+          user_data_folder = native( "Plasmacore_get_user_data_folder()" )->String
+        endIf
+      $endIf
+      return @user_data_folder
+
+endClass
+
+class ImageInfo
+  ENUMERATE
+    TYPE_TEXTURE_IMAGE
+    TYPE_IMAGE_LIST
+    TYPE_FONT
+
+  PROPERTIES
+    name             : String
+    group            : ImageGroupInfo
+
+    type             : Int32
+
+    unicode          : Character
+
+    display_size     : XY
+    texture_filename : String
+    texture_bounds   : Box
+    is_opaque        : Logical
+    snap             : Logical
+    spacing          : Value
+
+    images           : ImageInfo[]
+
+  METHODS
+    method init( name, group )
+
+    method init( existing:ImageInfo )
+      name = existing.name
+      group = existing.group
+      type = existing.type
+      unicode = existing.unicode
+      display_size = existing.display_size
+      texture_bounds = existing.texture_bounds
+      texture_filename = existing.texture_filename
+      is_opaque = existing.is_opaque
+      snap = existing.snap
+      spacing = existing.spacing
+      if (existing.images) images = existing.images.cloned
+
+    method init( info:Value )
+      name = info//name
+      load( info )
+
+    method cloned->ImageInfo
+      return ImageInfo( this )
+
+    method load->this
+      if (group) group.load
+      return this
+
+    method load( info:Value )
+      unicode = Character( info//unicode->Int32 )
+
+      which (info//type)
+        case "TextureImage"
+          type = TYPE_TEXTURE_IMAGE
+          texture_filename = info//texture//filename->String
+          texture_bounds = Box( info//texture//bounds )
+          display_size = XY( info//display_size )
+          is_opaque = info//is_opaque
+
+        case "Image[]"
+          type = TYPE_IMAGE_LIST
+          ensure images
+          forEach (img in info//images)
+            images.add( ImageInfo(img) )
+          endForEach
+
+        case "Font"
+          type = TYPE_FONT
+          ensure images
+          forEach (img in info//characters)
+            images.add( ImageInfo(img) )
+          endForEach
+          snap = info//snap
+          if (info//spacing)
+            spacing = info//spacing
+          endIf
+
+
+      endWhich
+
+endClass
+
+class ImageGroupInfo
+  PROPERTIES
+    filepath  : String
+    is_loaded : Logical
+
+  METHODS
+    method init( filepath )
+
+    method load
+      if (is_loaded) return
+      is_loaded = true
+
+      local manifest = JSON.load_table( Plasmacore.asset_file(filepath) ).decompressed
+      forEach (image in manifest//images)
+        local info = Plasmacore.image_info_lookup[ image//name ]
+        if (not info) nextIteration
+
+        info.load( image )
+      endForEach
+
+endClass
+
+$if not target("Android")
+nativeCode extern "C" RogueString* Plasmacore_find_asset( RogueString* name );
+nativeCode extern "C" RogueString* Plasmacore_get_user_data_folder();
+nativeCode extern "C" RogueString* Plasmacore_get_application_data_folder();
+$endIf
+
+$endIf  # not Console

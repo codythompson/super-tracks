@@ -1,0 +1,30 @@
+module Plasmacore
+
+class UpdateTimer
+  PROPERTIES
+    previous_update_time = System.time : Real64
+    first_update         = true
+    tick_debt            : Int32
+
+  METHODS
+    method tick->Logical
+      local refresh_rate = Display.refresh_rate
+      if (tick_debt < refresh_rate) return false
+      tick_debt -= refresh_rate
+      return true
+
+    method update
+      local cur_time = System.time
+      local elapsed_time = (cur_time - previous_update_time).or_smaller( 1.0/10.0 )
+      if (first_update)
+        # Ensure we get at least one tick() the first time so that a Screen or State
+        # gets its update() called before its first draw().
+        first_update = false
+        tick_debt += Display.refresh_rate
+      else
+        local ticks = Int32( (elapsed_time * Display.refresh_rate + 0.5).floor ).or_larger( 1 )
+        tick_debt += ticks * Display.updates_per_second
+      endIf
+      previous_update_time = cur_time
+endClass
+

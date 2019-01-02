@@ -1,0 +1,767 @@
+module Plasmacore
+
+class ImageShader
+  GLOBAL METHODS
+    method COLOR->Shader
+      return Display.color_image_shader
+
+    method TEXTURE->Shader
+      return Display.texture_image_shader
+
+    method TEXTURE_WITH_COLOR_MULTIPLY->Shader
+      return Display.texture_with_color_multiply_image_shader
+
+    method TEXTURE_WITH_COLOR_ADD->Shader
+      return Display.texture_with_color_add_image_shader
+
+    method TEXTURE_WITH_COLOR_FILL->Shader
+      return Display.texture_with_color_fill_image_shader
+
+endClass
+
+class Image
+  PROPERTIES
+    name          : String
+    image_info    : ImageInfo
+    data          : ImageData
+    position      : XY
+    z             = 1.0  # A proportion of Display.z - 0.5 is half the distance, 2.0 is 2x the distance, etc.
+    size          : XY
+    original_size : XY
+    scale         = XY(1,1)
+    rotation      : Angles
+    shader        : Shader
+    anchor        = Anchor.CENTER : Anchor
+    render_mode   : RenderMode  # no need to set explicitly in most cases
+    colors        = Colors(Color.WHITE) : Colors
+    opacity       = 1.0  # Master opacity; multiplies each color's alpha component
+    hflip         : Logical
+    vflip         : Logical
+
+    selected_render_mode : RenderMode
+    selected_shader      : Shader
+    # Automatically set to either the non-null 'shader' or a default shader.  Should not be set manually.
+
+  METHODS
+    method init( name )
+      init( Plasmacore.find_image_info( name ) )
+
+    method init( image_info )
+      if (image_info)
+        size = image_info.display_size
+        original_size = size
+      else
+        init( Bitmap(32,32,Color.WHITE) )
+      endIf
+
+    method init( other:Image )
+      name            = other.name
+      image_info      = other.image_info
+      data            = other.data
+      position        = other.position
+      z               = other.z
+      size            = other.@size
+      original_size   = other.@original_size
+      scale           = other.scale
+      rotation        = other.rotation
+      shader          = other.shader
+      anchor          = other.anchor
+      render_mode     = other.render_mode
+      colors          = other.colors
+      opacity         = other.opacity
+
+    method init( other:Image, subset:Box )
+      name          = other.name
+      image_info    = other.image_info
+      position      = other.position
+      z             = other.z
+      size          = subset.@size
+      original_size = other.original_size * (size / other.size)
+      scale         = other.scale
+      rotation      = other.rotation
+      shader        = other.shader
+      anchor        = other.anchor
+      render_mode   = other.render_mode
+      colors        = other.colors
+      opacity       = other.opacity
+
+      if (other.data)
+        data = other.data.cloned
+        local texture_data = data as TextureImageData
+        if (texture_data)
+          uv = subset + texture_data.uv1 * texture_data.texture.texture_size
+        else
+          # Program probably has a logical error if 'data' is not instanceOf TextureImageData
+          # but we'll try.
+          uv = subset
+        endIf
+      elseIf (image_info)
+        image_info = image_info.cloned
+        image_info.texture_bounds = subset + image_info.texture_bounds.position
+      endIf
+
+    method init( data )
+
+    method init( bitmap:Bitmap )
+      init( Texture(bitmap) )
+
+    method init( texture:Texture )
+      init( TextureImageData(texture) )
+      size = texture.image_size
+      original_size = size
+
+    method init( _color:Color, _size=Display.size:XY )
+      data = ColorFillImageData
+      colors = Colors( _color )
+      shader = ImageShader.COLOR
+      render_mode = select{ _color.is_opaque:RenderMode.OPAQUE_SHAPE || RenderMode.ALPHA_SHAPE }
+      size = _size
+      original_size = _size
+
+    method init( _colors:Colors, _size=Display.size:XY )
+      data = ColorFillImageData
+      colors = _colors
+      shader = ImageShader.COLOR
+      render_mode = select{ _colors.is_opaque:RenderMode.OPAQUE_SHAPE || RenderMode.ALPHA_SHAPE }
+      size = _size
+      original_size = _size
+
+    method bounds->Box
+      return bounds_at( position )
+
+    method bounds_at( at_position:XY )->Box
+      local s = @size * scale
+      local handle = (anchor.position * s)
+      return Box( at_position - handle, s )
+
+    method cloned->Image
+      return Image( this )
+
+    method collect_texture_names( texture_names:StringTable<<Logical>> )
+      if (not image_info) return
+
+      which (image_info.type)
+        case ImageInfo.TYPE_TEXTURE_IMAGE
+          texture_names[ image_info.texture_filename ] = true
+      endWhich
+
+    method draw
+      if (not prepare) return
+      data.draw( this )
+
+    method draw( position )
+      if (not prepare)
+        return
+      endIf
+      data.draw( this )
+
+    method height->Real64 [macro]
+      return (this.size.y)
+
+    method is_loaded->Logical
+      return (data and data.is_loaded)
+
+    method is_opaque->Logical
+      local texture_data = data as TextureImageData
+      if (texture_data) return texture_data.is_opaque
+      else              return false
+
+    method load->Logical
+      if (data)
+        data.load
+        return true
+      endIf
+
+      if (not image_info) return false
+
+      which (image_info.type)
+        case ImageInfo.TYPE_TEXTURE_IMAGE
+          local texture = Texture( image_info.texture_filename )
+          local is_opaque = image_info.is_opaque->Logical
+          data = TextureImageData( texture, is_opaque )
+          uv = image_info.texture_bounds
+          return true
+      endWhich
+
+      return false
+
+    method prepare->Logical
+      if (opacity <= 0.0) return false
+
+      if (not load)
+        println "Error loading " + select{ name || image_info.name }
+        data = ColorFillImageData
+        colors = Colors( Color.WHITE )
+        render_mode = RenderMode.OPAQUE_SHAPE
+        opacity = 0
+        return false
+      endIf
+
+      selected_render_mode = render_mode
+      if (not render_mode.has_blend_mode)
+        if (opacity < 1.0 or not colors.is_opaque_white)
+          selected_render_mode |= RenderMode.ALPHA_IMAGE
+        else
+          local texture_data = data as TextureImageData
+          if (texture_data)
+            selected_render_mode |= select{ texture_data.is_opaque:RenderMode.OPAQUE_IMAGE || RenderMode.ALPHA_IMAGE }
+          endIf
+        endIf
+      endIf
+
+      if (shader)
+        selected_shader = shader
+      else
+        # Use default shader
+        if (opacity < 1.0 or not colors.is_opaque_white)
+          selected_shader = ImageShader.TEXTURE_WITH_COLOR_MULTIPLY
+        else
+          selected_shader = ImageShader.TEXTURE
+        endIf
+      endIf
+
+      return true
+
+    method reload
+      # Reloads this image if the current image filters in use cause the name to resolve
+      # to a different specific image.  Does not actually unload previous texture or
+      # load new texture (because we want to let Screen.reload_images() unload old textures
+      # first).
+      if (not name) return
+
+      local new_info = Plasmacore.find_image_info( name )
+      if (not new_info) return
+
+      # Filename hasn't changed?
+      if (image_info and image_info.name == new_info.name) return
+
+      data = null
+      init( new_info )
+
+    method set( bitmap:Bitmap )
+      if (data) data = data.set( bitmap )
+      size = bitmap.size
+      original_size = size
+
+    method set_opacity( @opacity )->this
+      return this
+
+    method set_anchor( @anchor )->this
+      return this
+
+    method set_color( color:Color )->this
+      colors = Colors( color )
+      return this
+
+    method set_color( color:Int32 )->this
+      colors = Colors( color )
+      return this
+
+    method set_colors( @colors )->this
+      return this
+
+    method set_position( @position )->this
+      return this
+
+    method set_position( x:Real64, y:Real64 )->this
+      @position = XY(x,y)
+      return this
+
+    method set_position( xyz:XYZ )->this
+      @position = xyz->XY
+      @z = xyz.z
+      return this
+
+    method set_position( x:Real64, y:Real64, _z:Real64 )->this
+      @position = XY(x,y)
+      @z = _z
+      return this
+
+    method set_render_mode( @render_mode )->this
+      return this
+
+    method set_rotation( @rotation )->this
+      return this
+
+    method set_rotation( angle:Degrees )->this
+      @rotation = Angles.z( angle )
+      return this
+
+    method set_rotation( angle:Radians )->this
+      @rotation = Angles.z( angle )
+      return this
+
+    method set_scale( @scale )->this
+      return this
+
+    method set_scale( s:Real64 )->this
+      @scale = XY(s,s)
+      return this
+
+    method set_shader( @shader )->this
+      # Pass 'null' for default.
+      return this
+
+    method set_size( @size )->this
+      return this
+
+    method set_tint( t:Real64 )->this
+      # t=0.0: shader set to TEXTURE
+      # t>0.0: shader set to TEXTURE_WITH_COLOR_FILL, color alpha set to t*255
+      if (t == 0)
+        shader = null  # use default
+      else
+        local a32 = (t * 255)->Int32.clamped( 0, 255 ) :<<: 24
+        colors = (colors & 0xFFFFFF) | a32
+        shader = ImageShader.TEXTURE_WITH_COLOR_FILL
+      endIf
+
+      return this
+
+    method set_tint( t:Real64, tint_color:Color )->this
+      color = tint_color
+      return set_tint( t )
+
+    method set_tint( t:Real64, colors )->this
+      return set_tint( t )
+
+    method set_uv( subset:Box )
+      if (data) data.uv = subset
+
+    method set_z( @z )->this
+      return this
+
+    method size->XY
+      return @size * @scale
+
+    method texture->Texture
+      load
+      return ?:{ data:data.texture || null }
+
+    method unload->this
+      if (data)
+        data.unload
+        data = null
+      endIf
+      return this
+
+    method width->Real64 [macro]
+      return (this.size.x)
+
+endClass
+
+
+class CompositeImage : Image
+  PROPERTIES
+    on_draw_handler : Function()
+    # Optional, called after the image is drawn and while appropriate transformations and settings are still in effect.
+
+  METHODS
+    method init( name )
+      prior.init( Plasmacore.find_image_info( name ) )
+
+    method init( image:Image )
+      init( image.size )
+      add( image )
+
+    method init( size )
+      data = CompositeImageData()
+
+    method init( w:Int32, h:Int32 )
+      init( XY(w,h) )
+
+    method init( other:CompositeImage )
+      init( other as Image )
+      on_draw_handler = other.on_draw_handler
+
+    method cloned->CompositeImage
+      return CompositeImage( this )
+
+    method add( child:Image )->this
+      local composite_data = data as CompositeImageData
+      if (composite_data) composite_data.add( child )
+      return this
+
+    method handle_draw
+      # Use scale 1 during the callbacks
+      on_draw
+      if (on_draw_handler) on_draw_handler()
+
+    method on_draw
+
+    method on_draw( on_draw_handler )->this
+      return this
+
+endClass
+
+
+class ImageData
+  METHODS
+    method add( child:Image )
+      println "Illegal operation $.add(Image)." (type_name)
+
+    method cloned->ImageData
+      println "Illegal operation $.cloned()." (type_name)
+      return this
+
+    method draw( image:Image )
+
+    method is_loaded->Logical
+      return true
+
+    method load
+      noAction
+
+    method set( bitmap:Bitmap )->ImageData
+      return TextureImageData( Texture(bitmap) )
+
+    method set_uv( subset:Box )
+      noAction
+
+    method texture->Texture
+      return null
+
+    method unload
+      noAction
+
+endClass
+
+class CompositeImageData : ImageData
+  PROPERTIES
+    images : Image[]
+
+  METHODS
+    method add( child:Image )
+      ensure images
+      images.add( child )
+
+    method cloned->ImageData
+      local result = CompositeImageData()
+      if (images) result.images = images.cloned
+      return result
+
+    method draw( image:Image )
+      local size = image.scale * image.@size
+      local handle = XYZ( (image.anchor.position * size), 0 )
+
+      Display.push_view_transform( Matrix.scale(XYZ(image.scale,1)) )
+
+      local pos = image.position
+      local has_rotation = not image.rotation.is_zero
+      if (has_rotation)
+        Display.push_view_transform( Quaternion(image.rotation)->Matrix( handle, XYZ(pos,0)) )
+      else
+        Display.push_view_transform( Matrix.translate(XYZ(pos,0)-handle) )
+      endIf
+
+      if (images)
+        forEach (piece in images) piece.draw
+      endIf
+
+      local composite_image = image as CompositeImage
+      if (composite_image) composite_image.handle_draw
+
+      Display.pop_view_transform
+      Display.pop_view_transform
+
+
+endClass
+
+class ColorFillImageData : ImageData [singleton]
+  METHODS
+    method cloned->this
+      return this
+
+    method draw( image:Image )
+      local size = image.@size * image.scale
+      local handle = XYZ( (image.anchor.position * size), 0 )
+      local z = Display.z * image.z
+
+      local pos = image.position
+      local has_rotation = not image.rotation.is_zero
+      if (has_rotation)
+        Display.push_object_transform( Quaternion(image.rotation)->Matrix( handle, XYZ(pos,z)) )
+      else
+        Display.push_object_transform( Matrix.translate(XYZ(pos,z)-handle) )
+      endIf
+
+      local transform = Display.transform
+
+      local w = size.x
+      local h = size.y
+      local quad = Quad<<XYZW>>(
+        transform * XYZ( 0, 0, 0 ),
+        transform * XYZ( w, 0, 0 ),
+        transform * XYZ( w, h, 0 ),
+        transform * XYZ( 0, h, 0 ) )
+
+      Display.fill_solid_quad( quad, image.colors.with_opacity(image.opacity), image.selected_render_mode, image.selected_shader )
+
+      Display.pop_object_transform
+
+endClass
+
+class TextureImageData : ImageData
+  PROPERTIES
+    texture   : Texture
+    uv1       : XY
+    uv2       : XY
+    is_opaque : Logical
+
+  METHODS
+    method init( @texture, is_opaque=false )
+      uv2 = @texture.uv_size
+
+    method cloned->ImageData
+      local result = TextureImageData( @texture, is_opaque )
+      result.uv1 = uv1
+      result.uv2 = uv2
+      return result
+
+    method is_loaded->Logical
+      return @texture.is_loaded
+
+    method draw( image:Image )
+      local size = image.@size * image.scale
+      local handle = XYZ( (image.anchor.position * size), 0 )
+      local z = Display.z * image.z
+
+      local pos = image.position
+      local has_rotation = not image.rotation.is_zero
+      if (has_rotation)
+        Display.push_object_transform( Quaternion(image.rotation)->Matrix( handle, XYZ(pos,z)) )
+      else
+        Display.push_object_transform( Matrix.translate(XYZ(pos,z)-handle) )
+      endIf
+
+      local transform = Display.transform
+
+      local w = size.x
+      local h = size.y
+      local quad = Quad<<XYZW>>(
+        transform * XYZ( 0, 0, 0 ),
+        transform * XYZ( w, 0, 0 ),
+        transform * XYZ( w, h, 0 ),
+        transform * XYZ( 0, h, 0 ) )
+
+      local _uv = Quad( uv1, XY(uv2.x,uv1.y), uv2, XY(uv1.x,uv2.y) )
+      if (image.hflip) _uv = Quad( _uv.b, _uv.a, _uv.d, _uv.c )
+      if (image.vflip) _uv = Quad( _uv.d, _uv.c, _uv.b, _uv.a )
+
+      Display.fill_textured_quad( @texture, quad, image.colors.with_opacity(image.opacity),
+        _uv, image.selected_render_mode, image.selected_shader )
+
+      Display.pop_object_transform
+
+    method load
+      @texture.load
+
+    method set( bitmap:Bitmap )->this
+      @texture.set( bitmap )
+      return this
+
+    method set_uv( subset:Box )
+      uv1 = subset.top_left / @texture.texture_size
+      uv2 = subset.bottom_right / @texture.texture_size
+
+    method texture->Texture
+      return @texture
+
+    method unload
+      @texture.unload
+
+endClass
+
+
+#------------------------------------------------------------------------------
+# ImageShader.TEXTURE
+#------------------------------------------------------------------------------
+augment Display
+  PROPERTIES
+    texture_image_shader : Shader
+
+  METHODS
+    method texture_image_shader->Shader
+      if (@texture_image_shader) return @texture_image_shader
+
+      local vertex_shader =
+          @|attribute vec4 position;
+           |attribute      vec2 uv;
+           |varying        vec2 vertex_uv;
+           |
+           |void main()
+           |{
+           |  gl_Position = position;
+           |  vertex_uv = uv;
+           |}
+
+      local pixel_shader =
+          @|uniform sampler2D texture_0;
+           |varying vec2      vertex_uv;
+           |
+           |void main()
+           |{
+           |  gl_FragColor = texture2D(texture_0,vertex_uv);
+           |}
+
+       @texture_image_shader = Shader( vertex_shader, pixel_shader )
+      return @texture_image_shader
+endAugment
+
+
+#------------------------------------------------------------------------------
+# ImageShader.COLOR
+#------------------------------------------------------------------------------
+augment Display
+  PROPERTIES
+    color_image_shader : Shader
+
+  METHODS
+    method color_image_shader->Shader
+      if (@color_image_shader) return @color_image_shader
+
+      local vertex_shader =
+          @|attribute vec4  position;
+           |attribute $LOWP vec4 color;
+           |varying   $LOWP vec4 vertex_color;
+           |void main()
+           |{
+           |  gl_Position = position;
+           |  vertex_color = color / 255.0;
+           |}
+
+      local pixel_shader =
+          @|varying $LOWP vec4 vertex_color;
+           |void main()
+           |{
+           |  gl_FragColor = vertex_color;
+           |}
+
+      @color_image_shader = Shader( vertex_shader, pixel_shader )
+           return @color_image_shader
+
+endAugment
+
+
+#------------------------------------------------------------------------------
+# ImageShader.TEXTURE_WITH_COLOR_MULTIPLY
+#------------------------------------------------------------------------------
+augment Display
+  PROPERTIES
+    texture_with_color_multiply_image_shader : Shader
+
+  METHODS
+    method texture_with_color_multiply_image_shader->Shader
+      if (@texture_with_color_multiply_image_shader) return @texture_with_color_multiply_image_shader
+
+      local vertex_shader =
+          @|attribute vec4 position;
+           |attribute      vec2 uv;
+           |varying        vec2 vertex_uv;
+           |attribute $LOWP vec4 color;
+           |varying   $LOWP vec4 vertex_color;
+           |void main()
+           |{
+           |  gl_Position = position;
+           |  vertex_uv = uv;
+           |  vertex_color = color / 255.0;
+           |}
+
+      local pixel_shader =
+          @|uniform              sampler2D texture_0;
+           |varying              vec2      vertex_uv;
+           |varying $LOWP vec4 vertex_color;
+           |void main()
+           |{
+           |  gl_FragColor = texture2D(texture_0,vertex_uv) * vertex_color;
+           |}
+
+           @texture_with_color_multiply_image_shader = Shader( vertex_shader, pixel_shader )
+      return @texture_with_color_multiply_image_shader
+
+endAugment
+
+
+#------------------------------------------------------------------------------
+# ImageShader.TEXTURE_WITH_COLOR_ADD
+#------------------------------------------------------------------------------
+augment Display
+  PROPERTIES
+    texture_with_color_add_image_shader : Shader
+
+  METHODS
+    method texture_with_color_add_image_shader->Shader
+      if (@texture_with_color_add_image_shader) return @texture_with_color_add_image_shader
+
+      local vertex_shader =
+          @|attribute vec4  position;
+           |attribute       vec2 uv;
+           |varying         vec2 vertex_uv;
+           |attribute $LOWP vec4 color;
+           |varying   $LOWP vec4 vertex_color;
+           |void main()
+           |{
+           |  gl_Position = position;
+           |  vertex_uv = uv;
+           |  vertex_color = color / 255.0;
+           |}
+
+      local pixel_shader =
+          @|uniform       sampler2D texture_0;
+           |varying       vec2      vertex_uv;
+           |varying $LOWP vec4      vertex_color;
+           |void main()
+           |{
+           |  vec4 texture_color = texture2D(texture_0,vertex_uv);
+           |  gl_FragColor = vec4( texture_color.xyz + (vertex_color.xyz * texture_color.a), texture_color.a );
+           |}
+
+      @texture_with_color_add_image_shader = Shader( vertex_shader, pixel_shader )
+      return @texture_with_color_add_image_shader
+
+endAugment
+
+
+#------------------------------------------------------------------------------
+# ImageShader.TEXTURE_WITH_COLOR_FILL
+#------------------------------------------------------------------------------
+augment Display
+  PROPERTIES
+    texture_with_color_fill_image_shader : Shader
+
+  METHODS
+    method texture_with_color_fill_image_shader->Shader
+      if (@texture_with_color_fill_image_shader) return @texture_with_color_fill_image_shader
+
+      local vertex_shader =
+          @|attribute vec4  position;
+           |attribute       vec2 uv;
+           |varying         vec2 vertex_uv;
+           |attribute $LOWP vec4  color;
+           |varying   $LOWP vec4  vertex_color;
+           |varying   $LOWP float vertex_inverse_a;
+           |
+           |void main()
+           |{
+           |  gl_Position = position;
+           |  vertex_uv = uv;
+           |  vertex_color = color / 255.0;
+           |  vertex_inverse_a = 1.0 - vertex_color.a;
+           |}
+
+      local pixel_shader =
+          @|uniform       sampler2D texture_0;
+           |varying       vec2      vertex_uv;
+           |varying $LOWP vec4      vertex_color;
+           |varying $LOWP float     vertex_inverse_a;
+           |void main()
+           |{
+           |  vec4 texture_color = texture2D(texture_0,vertex_uv);
+           |  gl_FragColor = vec4( ((texture_color.xyz*vertex_inverse_a)+vertex_color.xyz)*texture_color.a, texture_color.a );
+           |}
+
+      @texture_with_color_fill_image_shader = Shader( vertex_shader, pixel_shader )
+      return @texture_with_color_fill_image_shader
+
+endAugment
+

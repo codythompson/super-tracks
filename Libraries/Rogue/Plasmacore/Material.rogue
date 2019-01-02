@@ -1,0 +1,404 @@
+module Plasmacore
+
+class MaterialShader
+  GLOBAL METHODS
+    method COLOR->Shader
+      return Display.color_material_shader
+
+    method TEXTURE->Shader
+      return Display.texture_material_shader
+
+endClass
+
+class Material [abstract]
+  PROPERTIES
+    shader      : Shader
+    render_mode = RenderMode.OPAQUE_SHAPE : RenderMode
+
+  METHODS
+    method draw( model:Model )
+      if (not shader) return
+
+      local mesh = model.mesh
+      if (not mesh) return
+      if (not mesh.positions.count) return
+
+      mesh.prepare
+
+      local viewport_size = Display.viewport_size
+
+      native @|glUseProgram( $shader->program_id );
+              |glViewport( 0, 0, (int)$viewport_size.x, (int)$viewport_size.y );
+              |glEnable( GL_CULL_FACE );
+              |glFrontFace( GL_CCW );
+              |glCullFace( GL_BACK );
+
+      if (render_mode.is_blended)
+        local gl_source_blend = 0
+        which (render_mode.source_blend)
+          case RenderMode.BLEND_ZERO:                 gl_source_blend = native("GL_ZERO")->Int32
+          case RenderMode.BLEND_ONE:                  gl_source_blend = native("GL_ONE")->Int32
+          case RenderMode.BLEND_SOURCE_ALPHA:         gl_source_blend = native("GL_SRC_ALPHA")->Int32
+          case RenderMode.BLEND_INVERSE_SOURCE_ALPHA: gl_source_blend = native("GL_ONE_MINUS_SRC_ALPHA")->Int32
+        endWhich
+
+        local gl_dest_blend = 0
+        which (render_mode.dest_blend)
+          case RenderMode.BLEND_ZERO:                 gl_dest_blend = native("GL_ZERO")->Int32
+          case RenderMode.BLEND_ONE:                  gl_dest_blend = native("GL_ONE")->Int32
+          case RenderMode.BLEND_SOURCE_ALPHA:         gl_dest_blend = native("GL_SRC_ALPHA")->Int32
+          case RenderMode.BLEND_INVERSE_SOURCE_ALPHA: gl_dest_blend = native("GL_ONE_MINUS_SRC_ALPHA")->Int32
+        endWhich
+
+        native @|glEnable( GL_BLEND );
+                |glBlendFunc( $gl_source_blend, $gl_dest_blend );
+      else
+        native @|glDisable( GL_BLEND );
+      endIf
+
+      #{
+      if (render_mode.is_textured)
+        forEach (i in 0..<active_textures.count.or_smaller(shader.texture_settings.count))
+          local texture = active_textures[ i ]
+          if (texture)
+            local setting = shader.texture_settings[ i ]
+            native @|glActiveTexture( GL_TEXTURE0+$i );
+                    |glBindTexture( GL_TEXTURE_2D, $texture->id );
+                    |glUniform1i( $setting, $i );
+
+            if (render_mode.wrap_x)
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
+            else
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+            endIf
+
+            if (render_mode.wrap_y)
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
+            else
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+            endIf
+
+            if (render_mode.is_point_filtered)
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+            else
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+              native @|glTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+            endIf
+          endIf
+        endForEach
+      endIf
+      }#
+
+      #{
+      # ---- Set Vertex Color Mode ------------------------------------------------
+      # Copy vertex colors and set up vertex color mode
+      # Swap red and blue while premultiplying R,G,B by A.
+      local count = vertex_colors.count
+      native @|{
+              |  RogueInt32* src = $vertex_colors->data->as_int32s - 1;
+              |  while (--$count >= 0)
+              |  {
+              |    int color = *(++src);
+              |    int a = (color >> 24) & 255;
+              |    int r = (((color >> 16) & 255) * a) / 255;
+              |    int g = (((color >> 8) & 255) * a) / 255;
+              |    int b = ((color & 255) * a) / 255;
+              |    *src = (a << 24) | (b << 16) | (g << 8) | r;
+              |  }
+              |}
+      }#
+
+      configure_shader( model )
+
+      #{
+      if (shader.color_attribute >= 0)
+        native @|glBindBuffer(GL_ARRAY_BUFFER, $this->color_buffer);
+                |glBufferData(GL_ARRAY_BUFFER, sizeof(GL_UNSIGNED_BYTE) * 4 * $mesh->colors->count, $mesh->colors->data->as_int32s, GL_STREAM_DRAW);
+                |glEnableVertexAttribArray( $shader->color_attribute );
+                |glVertexAttribPointer( $shader->color_attribute, 4, GL_UNSIGNED_BYTE, GL_FALSE, 0, 0);
+      endIf
+
+      if (shader.uv_attribute >= 0)
+        native @|glBindBuffer(GL_ARRAY_BUFFER, $this->uv_buffer);
+                |glBufferData(GL_ARRAY_BUFFER, sizeof(GL_FLOAT) * $mesh->uvs->count, $mesh->uvs->data->as_real32s, GL_STREAM_DRAW);
+                |glEnableVertexAttribArray( $shader->uv_attribute );
+                |glVertexAttribPointer( $shader->uv_attribute, 2, GL_FLOAT, GL_FALSE, 0, 0);
+      endIf
+      }#
+
+      native @|glDrawArrays( GL_TRIANGLES, 0, $mesh->vertex_count );
+
+      #@trace native("glGetError()")->Int32
+
+    method configure_shader( model:Model )
+      local mesh = model.mesh
+
+      if (shader.transform_setting >= 0)
+        native @|static GLfloat m[16];
+        forEach (element at i in Display.transform) native @|m[$i] = (GLfloat) $element;
+        local setting = shader.transform_setting
+        native @|glUniformMatrix4fv( $setting, 1, false, m );
+      endIf
+
+      if (shader.world_transform_setting >= 0)
+        native @|static GLfloat m[16];
+        forEach (element at i in Display.world_transform) native @|m[$i] = (GLfloat) $element;
+        local setting = shader.world_transform_setting
+        native @|glUniformMatrix4fv( $setting, 1, false, m );
+      endIf
+
+      if (shader.position_attribute >= 0)
+        native @|glBindBuffer( GL_ARRAY_BUFFER, $mesh->position_buffer );
+                |glEnableVertexAttribArray( $shader->position_attribute );
+                |glVertexAttribPointer( $shader->position_attribute, 3, GL_FLOAT, GL_FALSE, 0, 0);
+      endIf
+
+endClass
+
+
+#------------------------------------------------------------------------------
+# ColorMaterial
+#------------------------------------------------------------------------------
+class ColorMaterial : Material
+  PROPERTIES
+    color : Color
+
+  METHODS
+    method init( color=Color(0xFFc0c0c0) )
+      shader = MaterialShader.COLOR
+
+    method configure_shader( model:Model )
+      prior.configure_shader( model )
+
+      if (shader.fixed_color_setting >= 0)
+        local a = ((color.argb :>>>: 24) & 255) / Real32(255)
+        local r = a * ((color.argb :>>>: 16) & 255) / Real32(255)
+        local g = a * ((color.argb :>>>: 8) & 255) / Real32(255)
+        local b = a * ((color.argb) & 255) / Real32(255)
+        native @|glUniform4f( $shader->fixed_color_setting, $r, $g, $b, $a );
+      endIf
+
+endClass
+
+#------------------------------------------------------------------------------
+# MaterialShader.COLOR
+#------------------------------------------------------------------------------
+augment Display
+  PROPERTIES
+    color_material_shader : Shader
+
+  METHODS
+    method color_material_shader->Shader
+      if (@color_material_shader) return @color_material_shader
+
+      local vertex_shader =
+          @|uniform   mat4  transform;
+           |attribute vec4  position;
+           |
+           |void main()
+           |{
+           |  gl_Position = transform * position;
+           |}
+
+      local pixel_shader =
+          @|uniform $LOWP vec4 fixed_color;
+           |
+           |void main()
+           |{
+           |  gl_FragColor = fixed_color;
+           |}
+
+      @color_material_shader = Shader( vertex_shader, pixel_shader )
+      return @color_material_shader
+
+endAugment
+
+
+#------------------------------------------------------------------------------
+# MaterialShader.TEXTURE
+#------------------------------------------------------------------------------
+augment Display
+  PROPERTIES
+    texture_material_shader : Shader
+
+  METHODS
+    method texture_material_shader->Shader
+      if (@texture_material_shader) return @texture_material_shader
+
+      local vertex_shader =
+          @|uniform   mat4  transform;
+           |attribute vec4  position;
+           |
+           |void main()
+           |{
+           |  gl_Position = transform * position;
+           |}
+
+      local pixel_shader =
+          @|uniform $LOWP vec4 fixed_color;
+           |
+           |void main()
+           |{
+           |  gl_FragColor = fixed_color;
+           |}
+
+      @texture_material_shader = Shader( vertex_shader, pixel_shader )
+      return @texture_material_shader
+
+endAugment
+
+#{
+      if ((model.color.argb & 0xFF000000) == 0xFF000000)
+        render_mode = RenderMode.OPAQUE_SHAPE
+      else
+        render_mode = RenderMode.ALPHA_SHAPE
+      endIf
+}#
+
+
+          #{
+final String vertexShader =
+    "uniform mat4 u_MVPMatrix;      \n"     // A constant representing the combined model/view/projection matrix.
+  + "uniform mat4 u_MVMatrix;       \n"     // A constant representing the combined model/view matrix.
+  + "uniform vec3 u_LightPos;       \n"     // The position of the light in eye space.
+
+  + "attribute vec4 a_Position;     \n"     // Per-vertex position information we will pass in.
+  + "attribute vec4 a_Color;        \n"     // Per-vertex color information we will pass in.
+  + "attribute vec3 a_Normal;       \n"     // Per-vertex normal information we will pass in.
+
+  + "varying vec4 v_Color;          \n"     // This will be passed into the fragment shader.
+
+  + "void main()                    \n"     // The entry point for our vertex shader.
+  + "{                              \n"
+        // Transform the vertex into eye space.
+  + "   vec3 modelViewVertex = vec3(u_MVMatrix * a_Position);              \n"
+        // Transform the normal's orientation into eye space.
+  + "   vec3 modelViewNormal = vec3(u_MVMatrix * vec4(a_Normal, 0.0));     \n"
+        // Will be used for attenuation.
+  + "   float distance = length(u_LightPos - modelViewVertex);             \n"
+        // Get a lighting direction vector from the light to the vertex.
+  + "   vec3 lightVector = normalize(u_LightPos - modelViewVertex);        \n"
+        // Calculate the dot product of the light vector and vertex normal. If the normal and light vector are
+        // pointing in the same direction then it will get max illumination.
+  + "   float diffuse = max(dot(modelViewNormal, lightVector), 0.1);       \n"
+        // Attenuate the light based on distance.
+  + "   diffuse = diffuse * (1.0 / (1.0 + (0.25 * distance * distance)));  \n"
+        // Multiply the color by the illumination level. It will be interpolated across the triangle.
+  + "   v_Color = a_Color * diffuse;                                       \n"
+        // gl_Position is a special variable used to store the final position.
+        // Multiply the vertex by the matrix to get the final point in normalized screen coordinates.
+  + "   gl_Position = u_MVPMatrix * a_Position;                            \n"
+  + "}                                                                     \n";
+  }#
+
+#{
+final String fragmentShader =
+  "precision mediump float;       \n"     // Set the default precision to medium. We don't need as high of a
+                                          // precision in the fragment shader.
++ "varying vec4 v_Color;          \n"     // This is the color from the vertex shader interpolated across the
+                                          // triangle per fragment.
++ "void main()                    \n"     // The entry point for our fragment shader.
++ "{                              \n"
++ "   gl_FragColor = v_Color;     \n"     // Pass the color directly through the pipeline.
++ "}                              \n";
+}#
+
+
+
+#{
+  PROPERTIES
+    render_mode = RenderMode.OPAQUE_SHAPE : RenderMode
+
+  METHODS
+    method vertex_shader_source->String
+      return @|uniform   mat4  transform;
+              |attribute vec4  position;
+              |
+              |void main()
+              |{
+              |  gl_Position = transform * position;
+              |}
+
+    method pixel_shader_source->String
+      # Adapted from Tom Dalling's excellent article:
+      # http://www.tomdalling.com/blog/modern-opengl/08-even-more-lighting-directional-lights-spotlights-multiple-lights/
+      return @|uniform mat4 model;
+              |uniform vec3 camera_position;
+              |
+              |uniform       sampler2D texure_0;
+              |uniform $LOWP float     shininess;
+              |uniform $LOWP vec3      specular_color;
+              |
+              |#define MAX_LIGHTS 10
+              |uniform struct Light
+              |{
+              |         vec4  position;
+              |   $LOWP vec3  color;
+              |   $LOWP float attenuation;
+              |   $LOWP float ambient;
+              |   $LOWP float cone_angle;
+              |         vec3  cone_direction;
+              |} lights[MAX_LIGHTS];
+              |uniform int light_count;
+              |
+              |in vec2 fragTexCoord;
+              |in vec3 fragNormal;
+              |in vec3 fragVert;
+              |
+              |out vec4 final_color;
+              |
+              |vec3 ApplyLight( Light light, vec3 surface_color, vec3 normal, vec3 surface_position, vec3 surface_to_camera ) {
+              |    vec3 surfaceToLight;
+              |    float attenuation = 1.0;
+              |    if(light.position.w == 0.0) {
+              |        //directional light
+              |        surfaceToLight = normalize(light.position.xyz);
+              |        attenuation = 1.0; //no attenuation for directional lights
+              |    } else {
+              |        //point light
+              |        surfaceToLight = normalize(light.position.xyz - surface_position);
+              |        float distanceToLight = length(light.position.xyz - surface_position);
+              |        attenuation = 1.0 / (1.0 + light.attenuation * pow(distanceToLight, 2));
+              |
+              |        //cone restrictions (affects attenuation)
+              |        float lightToSurfaceAngle = degrees(acos(dot(-surfaceToLight, normalize(light.cone_direction))));
+              |        if(lightToSurfaceAngle > light.cone_angle){
+              |            attenuation = 0.0;
+              |        }
+              |    }
+              |
+              |    //ambient
+              |    vec3 ambient = light.ambient * surface_color.rgb * light.color;
+              |
+              |    //diffuse
+              |    float diffuseCoefficient = max(0.0, dot(normal, surfaceToLight));
+              |    vec3 diffuse = diffuseCoefficient * surface_color.rgb * light.color;
+              |
+              |    //specular
+              |    float specularCoefficient = 0.0;
+              |    if(diffuseCoefficient > 0.0)
+              |        specularCoefficient = pow(max(0.0, dot(surface_to_camera, reflect(-surfaceToLight, normal))), shininess);
+              |    vec3 specular = specularCoefficient * specular_color * light.color;
+              |
+              |    //linear color (color before gamma correction)
+              |    return ambient + attenuation*(diffuse + specular);
+              |}
+              |
+              |void main() {
+              |    vec3 normal = normalize(transpose(inverse(mat3(model))) * fragNormal);
+              |    vec3 surface_position = vec3(model * vec4(fragVert, 1));
+              |    vec4 surface_color = texture(texure_0, fragTexCoord);
+              |    vec3 surface_to_camera = normalize(camera_position - surface_position);
+              |
+              |    //combine color from all the lights
+              |    vec3 linear_color = vec3(0);
+              |    for(int i = 0; i < light_count; ++i){
+              |        linear_color += ApplyLight( lights[i], surface_color.rgb, normal, surface_position, surface_to_camera );
+              |    }
+              |
+              |    //final color (after gamma correction)
+              |    vec3 gamma = vec3(1.0/2.2);
+              |    final_color = vec4(pow(linear_color, gamma), surface_color.a);
+              |}
+}#

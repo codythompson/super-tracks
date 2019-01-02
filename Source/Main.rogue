@@ -1,0 +1,59 @@
+uses Plasmacore
+
+$include "TileDrawer.rogue"
+$include "GameState.rogue"
+
+Display( "Main" ).screen = MainScreen
+
+class MainScreen : Screen [singleton]
+  PROPERTIES
+
+  METHODS
+    method on_start
+      trace
+      change_state( InitialState() )
+
+    method on( e:PointerEvent )
+
+    method on_draw
+
+    method on_resize
+      # Called when the Display.size changes
+      trace Display.size
+
+    method on_update
+      # Called 60 times a second
+endClass
+
+
+class InitialState : State<<MainScreen>>
+  METHODS
+    method on_start
+      # Called when this state becomes the active state
+      println "Hello World"
+
+    method after_draw
+      # This happens after the current screen's on_draw()
+
+    method on( e:KeyEvent )
+      change_state( GameState() )
+      # trace e
+
+    method on( e:PointerEvent )
+      # if (e.is_press or e.is_release) trace e
+
+    method on( e:TextEvent )
+      # trace e
+
+    method on_draw
+      # This happens before the current screen's on_draw()
+      Display.clear( Color.BLUE )
+
+    method on_resize
+      trace
+      # Called when the Display.size changes
+
+    method on_update
+      # Called 60 times a second
+endClass
+

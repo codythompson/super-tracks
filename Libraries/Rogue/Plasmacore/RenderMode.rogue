@@ -1,0 +1,75 @@
+class RenderMode( value=0:Int32 ) [compound]
+  DEFINITIONS
+    # dest_blend is (render_mode >> 28) & 15
+    # src_blend  is (render_mode >> 24) & 15
+    BLEND_ZERO                 = 0x00
+    BLEND_ONE                  = 0x01
+    BLEND_SOURCE_ALPHA         = 0x02
+    BLEND_INVERSE_SOURCE_ALPHA = 0x03
+    BLEND_MASK                 = 0x0f
+
+    BLENDED                    = 0x00001000
+    TEXTURED                   = 0x00002000
+    WRAP_X                     = 0x00004000
+    WRAP_Y                     = 0x00008000
+    WRAP                       = (WRAP_X | WRAP_Y)
+    POINT_FILTER               = 0x00010000
+
+    COLOR_MULTIPLY             = 0x00100000
+    COLOR_ADD                  = 0x00200000
+    COLOR_FILL                 = 0x00300000
+    COLOR_MODE_MASK            = 0x00f00000
+
+    OPTION_MASK                = 0x00FFF000
+
+    OPAQUE_IMAGE  = RenderMode((BLEND_ZERO:<<:28)|(BLEND_ONE:<<:24)|TEXTURED)
+    ALPHA_IMAGE   = RenderMode((BLEND_INVERSE_SOURCE_ALPHA:<<:28)|(BLEND_ONE:<<:24)|BLENDED|TEXTURED)
+
+    OPAQUE_SHAPE  = RenderMode((BLEND_ZERO:<<:28)|(BLEND_ONE:<<:24))
+    ALPHA_SHAPE   = RenderMode((BLEND_INVERSE_SOURCE_ALPHA:<<:28)|(BLEND_ONE:<<:24)|BLENDED)
+
+  GLOBAL METHODS
+    method create( src_blend:Int32, dest_blend:Int32 )->RenderMode
+      return RenderMode( (dest_blend:<<:28) | (src_blend:<<:24) )
+
+    method create( src_blend:Int32, dest_blend:Int32, options=0:Int32 )->RenderMode
+      return RenderMode( (dest_blend:<<:28) | (src_blend:<<:24) | options )
+
+  METHODS
+    method operator&( flags:Int32 )->RenderMode [macro]
+      return RenderMode( this.value & flags )
+
+    method operator|( flags:Int32 )->RenderMode [macro]
+      return RenderMode( this.value | flags )
+
+    method operator&( other:RenderMode )->RenderMode [macro]
+      return RenderMode( this.value & other.value )
+
+    method operator|( other:RenderMode )->RenderMode [macro]
+      return RenderMode( this.value | other.value )
+
+    method dest_blend->Int32 [macro]
+      return ((this.value :>>>: 28) & 15)
+
+    method has_blend_mode->Logical [macro]
+      return ((this.value & RenderMode.BLEND_MASK) != 0)
+
+    method is_blended->Logical [macro]
+      return (this.value & RenderMode.BLENDED)
+
+    method is_point_filtered->Logical [macro]
+      return (this.value & RenderMode.POINT_FILTER)
+
+    method is_textured->Logical [macro]
+      return (this.value & RenderMode.TEXTURED)
+
+    method source_blend->Int32 [macro]
+      return ((this.value :>>>: 24) & 15)
+
+    method wrap_x->Logical [macro]
+      return (this.value & RenderMode.WRAP_X)
+
+    method wrap_y->Logical [macro]
+      return (this.value & RenderMode.WRAP_Y)
+
+endClass

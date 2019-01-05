@@ -1,0 +1,98 @@
+class TrackGraph
+  PROPERTIES
+    nodes:TrackNode[][]
+  METHODS
+    method init( tilesWide:Int32, tilesHigh:Int32 )
+      nodes = Dim<<TrackNode>>(tilesHigh, tilesWide)
+
+    method tilesWide->Int32
+      return nodes[0].count
+
+    method tilesHigh->Int32
+      return nodes.count
+
+    method nodeAt( i:Int32, j:Int32 )->TrackNode
+      if (i < 0 or i >= tilesWide or j < 0 or j >= tilesHigh) return null
+      return nodes[i][j]
+
+    method setNodeAt( i:Int32, j:Int32, node:TrackNode )
+      nodes[i][j] = node
+
+    method nodeLeftOf( i:Int32, j:Int32 )->TrackNode
+      return nodeAt(i-1, j)
+
+    method nodeAbove( i:Int32, j:Int32 )->TrackNode
+      return nodeAt(i, j-1)
+
+    method nodeRightOf( i:Int32, j:Int32 )->TrackNode
+      return nodeAt(i+1, j)
+
+    method nodeBelow( i:Int32, j:Int32 )->TrackNode
+      return nodeAt(i, j+1)
+
+    method hasEntranceLeftOf( i:Int32, j:Int32 )->Logical
+      # does the node left of here exist, and if so, does it have an exit to it's right?
+      return nodeLeftOf(i,j)? and TrackConnection.layoutContains(nodeLeftOf(i,j).exits, TrackConnection.RIGHT)
+
+    method hasEntranceAbove( i:Int32, j:Int32 )->Logical
+      # does the node above exist, and if so, does it have an below?
+      return nodeAbove(i,j)? and TrackConnection.layoutContains(nodeAbove(i,j).exits, TrackConnection.BOTTOM)
+
+    method hasEntranceRightOf( i:Int32, j:Int32 )->Logical
+      # does the node right of here exist, and if so, does it have an exit to it's left?
+      return nodeRightOf(i,j)? and TrackConnection.layoutContains(nodeRightOf(i,j).exits, TrackConnection.LEFT)
+
+    method hasEntranceBelow( i:Int32, j:Int32 )->Logical
+      # does the node below exist, and if so, does it have an exit above?
+      return nodeBelow(i,j)? and TrackConnection.layoutContains(nodeBelow(i,j).exits, TrackConnection.TOP)
+
+    method getEntranceLeftOf( i:Int32, j:Int32 )->TrackConnection
+      return select{hasEntranceLeftOf(i,j):TrackConnection.LEFT || TrackConnection.NONE}
+
+    method getEntranceAbove( i:Int32, j:Int32 )->TrackConnection
+      return select{hasEntranceAbove(i,j):TrackConnection.TOP || TrackConnection.NONE}
+
+    method getEntranceRightOf( i:Int32, j:Int32 )->TrackConnection
+      return select{hasEntranceRightOf(i,j):TrackConnection.RIGHT || TrackConnection.NONE}
+
+    method getEntranceBelow( i:Int32, j:Int32 )->TrackConnection
+      return select{hasEntranceBelow(i,j):TrackConnection.BOTTOM || TrackConnection.NONE}
+
+    method calcLayout( i:Int32, j:Int32 )->TrackTileInfo
+      local exits = nodeAt(i,j).exits
+      # bitwise-or together all the possible entrances
+      local entrances = TrackConnection(
+        getEntranceLeftOf(i,j) |
+        getEntranceAbove(i,j) |
+        getEntranceRightOf(i,j) |
+        getEntranceBelow(i,j)
+      )
+      local combinedLayout = TrackConnection(exits->Int32 | entrances->Int32)
+      return TrackTileInfo(i,j,combinedLayout,entrances,exits)
+
+    method tileInfo( i:Int32, j:Int32 )->TrackTileInfo
+
+    method to->String
+      local rows = String[]
+      forEach(j in 0..<tilesHigh)
+        local topLines = String[]
+        local bottomLines = String[]
+        forEach(i in 0..<tilesWide)
+          local nodeExits = nodeAt(i,j).exits
+          local top =
+            select{TrackConnection.layoutContains(nodeExits, TrackConnection.LEFT): "l" || " "} +
+            select{TrackConnection.layoutContains(nodeExits, TrackConnection.TOP): "t" || " "}
+          local bottom =
+            select{TrackConnection.layoutContains(nodeExits, TrackConnection.BOTTOM): "b" || " "} +
+            select{TrackConnection.layoutContains(nodeExits, TrackConnection.RIGHT): "r" || " "}
+          topLines.add(top)
+          bottomLines.add(bottom)
+        endForEach
+        rows.add("$\n$" (topLines.join('|'), bottomLines.join('|')))
+      endForEach
+
+      # two hyphens per tile, plus one hyphen per separator
+      local separator = "\n$\n" ("-".times((tilesWide*2)+(tilesWide-1)))
+      return rows.join(separator)
+
+endClass

@@ -28,8 +28,7 @@ class GameState : State<<MainScreen>>
 
   METHODS
     method on_start
-      tileDrawer = StupidTileDrawer(StupidTileDrawer.level_1)
-      # tileDrawer = StupidTileDrawer("++++++++")
+      tileDrawer = StupidTileDrawer(Atlases.parse(Atlases.level_1))
 
     method on_draw
       Display.clear( Color.DARK_GRAY )

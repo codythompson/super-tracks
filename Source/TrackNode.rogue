@@ -1,0 +1,6 @@
+class TrackNode
+  PROPERTIES
+    exits=TrackConnection.NONE:TrackConnection
+  METHODS
+    method init( @exits )
+endClass

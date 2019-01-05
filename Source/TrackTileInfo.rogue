@@ -1,0 +1,2 @@
+class TrackTileInfo ( i:Int32, j:Int32, layout:TrackConnection, entrances:TrackConnection, exits:TrackConnection ) [compound]
+endClass

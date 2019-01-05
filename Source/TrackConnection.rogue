@@ -1,0 +1,31 @@
+enum TrackConnection
+  # ENUMERATE
+                         # 8421
+                         # BRTL
+  NONE              = 0  # 0000
+  LEFT              = 1  # 0001
+  TOP               = 2  # 0010
+  RIGHT             = 4  # 0100
+  BOTTOM            = 8  # 1000
+
+  LEFT_TOP          = 3  # 0011
+  LEFT_RIGHT        = 5  # 0101
+  LEFT_BOTTOM       = 9  # 1001
+  TOP_RIGHT         = 6  # 0110
+  TOP_BOTTOM        = 10 # 1010
+  RIGHT_BOTTOM      = 12 # 1100
+
+  LEFT_TOP_RIGHT    = 7  # 0111
+  LEFT_TOP_BOTTOM   = 11 # 1011
+  LEFT_RIGHT_BOTTOM = 13 # 1101
+  TOP_RIGHT_BOTTOM  = 14 # 1110
+
+  LEFT_TOP_RIGHT_BOTTOM = 15 # 1111
+
+  GLOBAL METHODS
+    method layoutContains( layout:TrackConnection, connection:TrackConnection )->Logical
+      # a bitwise-and with eachother will 0 out all bits except the "connection" bit.
+      # if the result of the bitwise and is greater than 0, that means the bit
+      # representing "connection" was set to 1 in "layout" 
+      return layout->Int32 & connection->Int32 > 0
+endEnum

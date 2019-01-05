@@ -236,7 +236,7 @@ class Build [essential singleton]
         others:                target += ",Desktop"
       endWhich
 
-      local cmd = ''$ --target=$ --gc=manual Source/Main.rogue Plasmacore --libraries=Libraries/Rogue --output=$/RogueProgram''...
+      local cmd = ''$ --target=$ --gc=manual Source/Main.rogue Plasmacore --libraries=Libraries/Rogue --output=$/RogueProgram --debug''...
         (ROGUEC,target,output_folder)
       if (Build.ide_mode) cmd += " --ide"
       run( cmd )

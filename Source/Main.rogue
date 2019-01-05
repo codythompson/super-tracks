@@ -1,5 +1,12 @@
 uses Plasmacore
 
+# DEBUG
+$include "Debug/Atlases.rogue"
+
+$include "TrackGraph.rogue"
+$include "TrackTileInfo.rogue"
+$include "TrackNode.rogue"
+$include "TrackConnection.rogue"
 $include "TileDrawer.rogue"
 $include "GameState.rogue"
 

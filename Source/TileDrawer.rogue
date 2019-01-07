@@ -15,7 +15,6 @@ class StupidTileDrawer : TileDrawer
       return this=>draw
 
     method colorAt( i:Int32, j:Int32 )->Color
-      println "$,$ $x$" (i,j, graph.tilesWide, graph.tilesHigh)
       if (i >= graph.tilesWide or j >= graph.tilesHigh) return errorColor
       local layout = graph.calcLayout(i,j).layout
       return select(layout){TrackConnection.NONE:landColor || trackColor}

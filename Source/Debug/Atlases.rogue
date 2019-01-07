@@ -50,7 +50,6 @@ class Atlases [singleton]
       )
       local tileStrs = String[][]()
       local tilesWide = lines[0].split('|').count
-      println tilesWide
       if (tilesWide == 0) throw Exception("[Atlases][parse] no separators found")
       forEach(index in 0..<lines.count step 2)
         local top = lines[index].split('|')
@@ -77,8 +76,6 @@ class Atlases [singleton]
           graph.setNodeAt(i, j, TrackNode(exits))
         endForEach
       endForEach
-
-      println graph
 
       return graph
 

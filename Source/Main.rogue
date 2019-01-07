@@ -2,12 +2,14 @@ uses Plasmacore
 
 # DEBUG
 $include "Debug/Atlases.rogue"
+$include "Debug/DbgObjs.rogue"
 
 $include "TrackGraph.rogue"
 $include "TrackTileInfo.rogue"
 $include "TrackNode.rogue"
 $include "TrackConnection.rogue"
 $include "TileDrawer.rogue"
+$include "GameObj.rogue"
 $include "GameState.rogue"
 
 Display( "Main" ).screen = MainScreen

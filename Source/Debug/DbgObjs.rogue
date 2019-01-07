@@ -1,0 +1,14 @@
+uses Plasmacore
+
+local minecartInfo = Plasmacore.find_image_info("mine.png")
+minecartInfo.texture_bounds = Box(0*64, 13*64, 1*64, 2*64)
+global minecartImage = Image(minecartInfo)
+minecartImage.size = XY(100, 200)
+# minecartImage.uv = Box(0,0,0.25, 0.25)
+# println "?1?$" (minecartImage.data as TextureImageData.uv1)
+# println "?2?$" (minecartImage.data as TextureImageData.uv1)
+# println "?? $" (minecartImage.data.type_name)
+
+global minecartObj = GameObj():GameObj
+minecartObj.ij = XY(1.5, 7)
+minecartObj.images.add(minecartImage)

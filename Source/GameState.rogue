@@ -25,12 +25,17 @@ class GameState : State<<MainScreen>>
   PROPERTIES
     tileMap = TileMapLayout(100, 100, XY(100, 100))
     tileDrawer:TileDrawer
+    gameObjs = GameObj[]
 
   METHODS
     method on_start
       tileDrawer = StupidTileDrawer(Atlases.parse(Atlases.level_1))
+      gameObjs.add(minecartObj)
 
     method on_draw
       Display.clear( Color.DARK_GRAY )
       tileMap.draw(tileDrawer.drawFunc)
+      forEach(obj in gameObjs)
+        obj.draw(tileMap)
+      endForEach
 endClass

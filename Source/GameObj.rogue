@@ -1,0 +1,17 @@
+uses Plasmacore
+
+class GameObj
+  PROPERTIES
+    ij = XY(0,0):XY
+    # TODO other transform props
+    # TODO color
+    # TODO Path
+    images = Image[]
+  METHODS
+    method draw( tileMap:TileMapLayout )
+      if (images.count == 0) return
+      local xy = tileMap.map_to_screen(ij)
+      forEach(image in images)
+        image.draw(xy)
+      endForEach
+endClass

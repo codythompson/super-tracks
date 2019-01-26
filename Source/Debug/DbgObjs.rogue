@@ -1,14 +1,13 @@
 uses Plasmacore
 
-local minecartInfo = Plasmacore.find_image_info("mine.png")
-minecartInfo.texture_bounds = Box(0*64, 13*64, 1*64, 2*64)
-global minecartImage = Image(minecartInfo)
-minecartImage.size = XY(100, 200)
-# minecartImage.uv = Box(0,0,0.25, 0.25)
-# println "?1?$" (minecartImage.data as TextureImageData.uv1)
-# println "?2?$" (minecartImage.data as TextureImageData.uv1)
-# println "?? $" (minecartImage.data.type_name)
+global minecartImages = Image[]("mine.png"):Image[]
+global minecartTop = minecartImages[208]:Image
+minecartTop.scale = 100 / minecartTop.width
+global minecartBottom = minecartImages[224]:Image
+minecartBottom.scale = 100 / minecartBottom.width
+
 
 global minecartObj = GameObj():GameObj
-minecartObj.ij = XY(1.5, 7)
-minecartObj.images.add(minecartImage)
+minecartObj.ij = XY(2, 4)
+minecartObj.add(minecartTop, XY(0, -1))
+minecartObj.add(minecartBottom)

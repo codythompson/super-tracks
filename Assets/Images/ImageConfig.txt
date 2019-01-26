@@ -46,6 +46,7 @@
 [Global]
 @ **Font* varfont
 @ **font* varfont
+@ mine.png split:16x16
 
 [Default]
 set image_sheet_size:4096

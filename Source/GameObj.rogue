@@ -7,11 +7,16 @@ class GameObj
     # TODO color
     # TODO Path
     images = Image[]
+    imageOffsets = XY[]
   METHODS
     method draw( tileMap:TileMapLayout )
       if (images.count == 0) return
-      local xy = tileMap.map_to_screen(ij)
-      forEach(image in images)
+      forEach(image at i in images)
+        local xy = tileMap.map_to_screen(ij + imageOffsets[i] + XY(0.5,0.5))
         image.draw(xy)
       endForEach
+
+    method add( image:Image, imageOffset=XY(0,0):XY )
+      images.add(image)
+      imageOffsets.add(imageOffset)
 endClass

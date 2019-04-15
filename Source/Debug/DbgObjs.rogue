@@ -6,6 +6,27 @@ minecartTop.scale = 100 / minecartTop.width
 global minecartBottom = minecartImages[224]:Image
 minecartBottom.scale = 100 / minecartBottom.width
 
+global trackSet:TileSet
+trackSet = TileSet(minecartImages[1]).[ #                x   y
+  add(TrackConnection.NONE,                   minecartImages[ 4+( 5*16)])
+  add(TrackConnection.LEFT,                   minecartImages[12+(11*16)])
+  add(TrackConnection.TOP,                    minecartImages[12+(11*16)])
+  add(TrackConnection.RIGHT,                  minecartImages[12+(12*16)])
+  add(TrackConnection.BOTTOM,                 minecartImages[12+(12*16)])
+  add(TrackConnection.LEFT_TOP,               minecartImages[15+( 5*16)])
+  add(TrackConnection.LEFT_RIGHT,             minecartImages[14+( 5*16)])
+  add(TrackConnection.LEFT_BOTTOM,            minecartImages[15+( 5*16)])
+  add(TrackConnection.TOP_RIGHT,              minecartImages[13+( 5*16)])
+  add(TrackConnection.TOP_BOTTOM,             minecartImages[13+( 4*16)])
+  add(TrackConnection.RIGHT_BOTTOM,           minecartImages[13+( 3*16)])
+  # add(TrackConnection.LEFT_TOP_RIGHT,         minecartImages[14+( 3*16)].cloned[rotation = (Angles.create().z(Degrees(180)))])
+  add(TrackConnection.LEFT_TOP_RIGHT,         minecartImages[ 3+(14*16)])
+  add(TrackConnection.LEFT_TOP_BOTTOM,        minecartImages[15+( 4*16)])
+  add(TrackConnection.LEFT_RIGHT_BOTTOM,      minecartImages[14+( 3*16)])
+  add(TrackConnection.TOP_RIGHT_BOTTOM,       minecartImages[ 3+(13*16)])
+  add(TrackConnection.LEFT_TOP_RIGHT_BOTTOM,  minecartImages[14+( 4*16)])
+]
+global trackDbl = TileImage(trackSet):TileImage
 
 global minecartObj = GameObj():GameObj
 minecartObj.ij = XY(2, 4)

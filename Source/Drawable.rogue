@@ -1,0 +1,29 @@
+uses Plasmacore
+
+class Drawable [aspect]
+  METHODS
+    method update
+      #no op - optionally override
+    method draw( info:TrackTileInfo, bounds:Box )[aspect]
+    method cloned->Drawable [aspect]
+endClass
+
+class TileImage(tileSet:TileImageSetInterface) : Drawable
+  PROPERTIES
+    offset=XY(0,0)
+    scale=XY(1,1)
+
+  METHODS
+    method draw( info:TrackTileInfo, bounds:Box )
+      local image = tileSet.get(info)
+      if (not image?) return
+      local drawFactorX = bounds.width / image.width
+      local drawFactorY = bounds.height / image.height
+      local origScale = image.scale
+      local origAnchor = image.anchor
+      image.scale = scale * XY(drawFactorX, drawFactorY)
+      image.anchor = Anchor.TOP_LEFT
+      image.draw(bounds.position)
+      image.scale = origScale
+      image.anchor = origAnchor
+endClass

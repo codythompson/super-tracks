@@ -7,9 +7,9 @@ endClass
 
 class StupidTileDrawer : TileDrawer
   PROPERTIES
-    trackColor=Color.GRAY:Color
-    landColor=Color.GREEN:Color
-    errorColor=Color.MAGENTA:Color
+    trackColor=Color.DARK_GRAY:Color
+    landColor=Color.DARK_GRAY:Color
+    errorColor=Color.DARK_GREEN:Color
   METHODS
     method drawFunc->Function( index:Int32, ij:XY, bounds:Box )
       return this=>draw
@@ -21,4 +21,21 @@ class StupidTileDrawer : TileDrawer
 
     method draw( index:Int32, ij:XY, bounds:Box )
       bounds.fill( colorAt(ij.x, ij.y) )
+endClass
+
+class BetterTileDrawer( graph:TrackGraph, tileImage:TileImage ) : StupidTileDrawer
+  METHODS
+    method draw( index:Int32, ij:XY, bounds:Box )
+      # draw a background color
+      prior.draw(index, ij, bounds)
+
+      #try to draw a tiled image
+      local tileInfo:TrackTileInfo
+      contingent
+        necessary (graph.contains(ij.x, ij.y))
+        tileInfo = graph.calcLayout(ij.x, ij.y)
+        necessary (tileImage.tileSet.contains(tileInfo))
+        satisfied
+          tileImage.draw(tileInfo, bounds)
+      endContingent
 endClass

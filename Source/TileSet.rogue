@@ -1,0 +1,32 @@
+uses Plasmacore
+
+class TileImageSetInterface [aspect]
+  METHODS
+    method get( trackInfo:TrackTileInfo )->Image [aspect]
+    method contains( trackInfo:TrackTileInfo )->Logical [aspect]
+    method cloned->TileImageSetInterface [aspect]
+endClass
+
+class TileSet : TileImageSetInterface
+  PROPERTIES
+    default:Image
+    images=Table<<TrackConnection,Image>>()
+  METHODS
+    method init( @default )
+
+    method add( layout:TrackConnection, image:Image )
+      images.set(layout, image)
+
+    method get( trackInfo:TrackTileInfo )->Image
+      if (not images.contains(trackInfo.layout)) return default
+      return images[trackInfo.layout]
+
+    method contains( trackInfo:TrackTileInfo )->Logical
+      return images.contains(trackInfo.layout)
+
+    method cloned->TileImageSetInterface
+      local cln = TileSet(default)
+      forEach(layout in images.keys)
+        cln.add(layout, images[layout])
+      endForEach
+endClass

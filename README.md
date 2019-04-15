@@ -7,6 +7,4 @@
 
 ## drawable
 
-- need a class that has information about how to draw an image
-    - needs and offset (currently built into game obj)
-    - needs scale relative to a tile (i.e. if tiles are 100x100, a tileScale of 1.5x1.5 would draw a 100x100 image at 150x150)
+- Figure out the best way to deal with custom rotations/offsets/handles per image in a tileset (support commented out case in DbgObjs.rogue)

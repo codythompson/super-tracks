@@ -9,6 +9,8 @@ $include "TrackTileInfo.rogue"
 $include "TrackNode.rogue"
 $include "TrackConnection.rogue"
 $include "TileDrawer.rogue"
+$include "Drawable.rogue"
+$include "TileSet.rogue"
 $include "GameObj.rogue"
 $include "GameState.rogue"
 

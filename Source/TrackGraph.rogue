@@ -11,6 +11,9 @@ class TrackGraph
     method tilesHigh->Int32
       return nodes.count
 
+    method contains( i:Int32, j:Int32 )->Logical
+      return i >= 0 and i < tilesWide and j >= 0 and j < tilesHigh
+
     method nodeAt( i:Int32, j:Int32 )->TrackNode
       if (i < 0 or i >= tilesWide or j < 0 or j >= tilesHigh) return null
       return nodes[i][j]
@@ -59,6 +62,7 @@ class TrackGraph
       return select{hasEntranceBelow(i,j):TrackConnection.BOTTOM || TrackConnection.NONE}
 
     method calcLayout( i:Int32, j:Int32 )->TrackTileInfo
+      if (not contains(i,j)) throw Error("[calcLayout] invalid i,j $,$" (i,j))
       local exits = nodeAt(i,j).exits
       # bitwise-or together all the possible entrances
       local entrances = TrackConnection(
@@ -69,8 +73,6 @@ class TrackGraph
       )
       local combinedLayout = TrackConnection(exits->Int32 | entrances->Int32)
       return TrackTileInfo(i,j,combinedLayout,entrances,exits)
-
-    method tileInfo( i:Int32, j:Int32 )->TrackTileInfo
 
     method to->String
       local rows = String[]

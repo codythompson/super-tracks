@@ -26,11 +26,19 @@ class GameState : State<<MainScreen>>
     tileMap = TileMapLayout(100, 100, XY(100, 100))
     tileDrawer:TileDrawer
     gameObjs = GameObj[]
+    mover:GameObjMover
 
   METHODS
     method on_start
       tileDrawer = BetterTileDrawer(Atlases.parse(Atlases.level_1), trackDbl)
       gameObjs.add(minecartObj)
+      minecartObj.vel.x = 0.01
+      mover = LinearObjMover()
+
+    method on_update
+      forEach(obj in gameObjs)
+        mover.moveObj(obj, tileDrawer.graph)
+      endForEach
 
     method on_draw
       Display.clear( Color.DARK_GRAY )

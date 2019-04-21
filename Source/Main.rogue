@@ -13,6 +13,7 @@ $include "Drawable.rogue"
 $include "TileSet.rogue"
 $include "GameObj.rogue"
 $include "GameState.rogue"
+$include "GameObjMover.rogue"
 
 Display( "Main" ).screen = MainScreen
 

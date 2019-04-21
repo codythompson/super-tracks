@@ -1,0 +1,13 @@
+uses Plasmacore
+
+class GameObjMover [aspect]
+  METHODS
+    method moveObj(obj:GameObj, graph:TrackGraph) [aspect]
+endClass
+
+class LinearObjMover : GameObjMover
+  METHODS
+    method moveObj(obj:GameObj, graph:TrackGraph)
+      if (obj.vel.x == 0 and obj.vel.y == 0) return
+      obj.ij = XY(obj.ij.x + obj.vel.x, obj.ij.y + obj.vel.y)
+endClass

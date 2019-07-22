@@ -3,13 +3,13 @@ class TrackGraph
     nodes:TrackNode[][]
   METHODS
     method init( tilesWide:Int32, tilesHigh:Int32 )
-      nodes = Dim<<TrackNode>>(tilesHigh, tilesWide)
+      nodes = Dim<<TrackNode>>(tilesWide, tilesHigh)
 
     method tilesWide->Int32
-      return nodes[0].count
+      return nodes.count
 
     method tilesHigh->Int32
-      return nodes.count
+      return nodes[0].count
 
     method contains( i:Int32, j:Int32 )->Logical
       return i >= 0 and i < tilesWide and j >= 0 and j < tilesHigh
@@ -63,7 +63,8 @@ class TrackGraph
 
     method calcLayout( i:Int32, j:Int32 )->TrackTileInfo
       if (not contains(i,j)) throw Error("[calcLayout] invalid i,j $,$" (i,j))
-      local exits = nodeAt(i,j).exits
+      local node = nodeAt(i,j)
+      local exits = node.exits
       # bitwise-or together all the possible entrances
       local entrances = TrackConnection(
         getEntranceLeftOf(i,j) |
@@ -72,7 +73,7 @@ class TrackGraph
         getEntranceBelow(i,j)
       )
       local combinedLayout = TrackConnection(exits->Int32 | entrances->Int32)
-      return TrackTileInfo(i,j,combinedLayout,entrances,exits)
+      return TrackTileInfo(i,j,combinedLayout,entrances,exits,node.activeExit)
 
     method to->String
       local rows = String[]

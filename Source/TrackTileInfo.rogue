@@ -1,2 +1,22 @@
-class TrackTileInfo ( i:Int32, j:Int32, layout:TrackConnection, entrances:TrackConnection, exits:TrackConnection ) [compound]
+uses Plasmacore
+
+class TrackTileInfo ( i:Int32, j:Int32, layout:TrackConnection, entrances:TrackConnection, exits:TrackConnection, activeExit:TrackConnection ) [compound]
+  METHODS
+    method exitIJ->XY
+      local exitI = select(activeExit) {
+        TrackConnection.LEFT: i-1 ||
+        # TrackConnection.TOP: i ||
+        TrackConnection.RIGHT: i+1 ||
+        # TrackConnection.BOTTOM: i ||
+        i...
+      }
+      local exitJ = select(activeExit) {
+        # TrackConnection.LEFT: j ||
+        TrackConnection.TOP: j-1 ||
+        # TrackConnection.RIGHT: j ||
+        # TrackConnection.BOTTOM: j+1 ||
+        j...
+      }
+      MainScreen.debugs["ij: $,$" (i,j)] = "$,$" (exitI,exitJ)
+      return XY(exitI,exitJ)
 endClass

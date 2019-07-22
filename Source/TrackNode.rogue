@@ -1,6 +1,15 @@
 class TrackNode
   PROPERTIES
     exits=TrackConnection.NONE:TrackConnection
+    activeExit=TrackConnection.NONE:TrackConnection
   METHODS
     method init( @exits )
+      activeExit = select
+      {
+        TrackConnection.layoutContains(exits, TrackConnection.TOP): TrackConnection.TOP ||
+        TrackConnection.layoutContains(exits, TrackConnection.LEFT): TrackConnection.LEFT ||
+        TrackConnection.layoutContains(exits, TrackConnection.RIGHT): TrackConnection.RIGHT ||
+        TrackConnection.layoutContains(exits, TrackConnection.BOTTOM): TrackConnection.BOTTOM ||
+        TrackConnection.NONE...
+      }
 endClass

@@ -4,6 +4,7 @@ uses Plasmacore
 $include "Debug/Atlases.rogue"
 $include "Debug/DbgObjs.rogue"
 
+$include "IJ.rogue"
 $include "TrackGraph.rogue"
 $include "TrackTileInfo.rogue"
 $include "TrackNode.rogue"

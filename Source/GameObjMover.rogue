@@ -8,6 +8,19 @@ endClass
 class LinearObjMover : GameObjMover
   METHODS
     method moveObj(obj:GameObj, graph:TrackGraph)
-      if (obj.vel.x == 0 and obj.vel.y == 0) return
-      obj.ij = XY(obj.ij.x + obj.vel.x, obj.ij.y + obj.vel.y)
+      if (Math.abs(obj.speed) < 0.00001)
+        return
+      endIf
+
+      # TODO: take desired diretion (for switches) into account
+      local tileInfo = graph.calcLayout(obj.containingTile.i, obj.containingTile.j)
+      local exitIJ = tileInfo.exitIJ
+      if ((exitIJ - obj.ij).magnitude < obj.speed)
+        obj.ij = exitIJ
+        obj.containingTile = IJ(exitIJ.x, exitIJ.y)
+      else
+        local vel = XY(obj.speed, (exitIJ - obj.ij).radians)
+        obj.ij += vel
+      endIf
 endClass
+

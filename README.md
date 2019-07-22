@@ -2,9 +2,9 @@
 
 ## pathing
 
-- BUG NOTE: exit discrepancies between i and j. Need to investigate further
-- Track graph needs a method that will return a new tile coordinate given a speed (non directional) and a desired turn (left, right, or none)
-  - will path toward desired exit (ignores desired turn if only one exit)
+- implement track switching 
+- Mover that doesn't follow tracks/graph
+- GameObj components (location, speed, angle) movers only act on objs with components they recognize and appropriate tags
 
 ## drawable
 
@@ -15,7 +15,7 @@
 - change GameState from extending a state to extendinga screen
 
 
-# misc ideas
+# misc game design ideas
 
 - When doing 90deg world rotations, some sort of time warp/dilation effect gives the player a subtle advantage/disadvantage over enemies
 
@@ -23,3 +23,5 @@
     - wild west - switch sign shot with gun
     - modern - electrity animation along a wire (or maybe a satellite)
     - space - light beams? or laser blasters :)
+
+- Power up that lets you pick left or right and switches will be automatically switched. Maybe this shouldn't be a power up and you should just always swipe left or right to dictate the next switch move

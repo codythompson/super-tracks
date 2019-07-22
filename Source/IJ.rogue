@@ -1,0 +1,9 @@
+class IJ( i:Int32, j:Int32 ) [compound]
+  GLOBAL METHODS
+    method create->IJ
+      return IJ(0,0)
+    
+    method create( n:Int32 )->IJ
+      return IJ(n, n)
+
+endClass

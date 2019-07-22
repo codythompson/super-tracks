@@ -30,11 +30,11 @@ class GameState : State<<MainScreen>>
 
   METHODS
     method on_start
-      tileDrawer = BetterTileDrawer(Atlases.parse(Atlases.level_0), trackDbl)
-      minecartObj.ij = XY(2, 6)
+      tileDrawer = BetterTileDrawer(Atlases.parse(Atlases.level_1), trackDbl)
+      # minecartObj.moveTo(2, 6)
+      minecartObj.moveTo(1, 7)
       gameObjs.add(minecartObj)
-      minecartObj.vel.x = 0.01
-      # minecartObj.vel = 0.01
+      minecartObj.speed = 0.1
       mover = LinearObjMover()
 
     method on_update

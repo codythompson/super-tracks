@@ -2,17 +2,29 @@ uses Plasmacore
 
 class GameObj
   PROPERTIES
-    ij = XY(0,0)
+    containingTile:IJ
+
+    ij:XY
     # TODO other transform props
     # TODO color
     # TODO Path
 
     # TODO maybe move this out into components
-    vel = XY(0,0)
+    speed = 0:Real64
 
     images = Image[]
     imageOffsets = XY[]
   METHODS
+    method init()
+      moveTo(0, 0)
+
+    method init( i:Int32, j:Int32 )
+      moveTo(i, j)
+
+    method moveTo( i:Int32, j:Int32 )
+      containingTile = IJ(i,j)
+      ij = XY(i, j)
+
     method draw( tileMap:TileMapLayout )
       if (images.count == 0) return
       forEach(image at i in images)

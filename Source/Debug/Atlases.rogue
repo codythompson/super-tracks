@@ -8,6 +8,28 @@
 
 class Atlases [singleton]
   PROPERTIES
+    level_0 =
+@|  |  |  |  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  |  | t|  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  |  | t|  |  |  |  |  
+ |  | r|  |  |  |  |  |  
+ |-----------------------
+ |  | t|  |  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  | t|l |  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  |  | t|  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  |  | t|  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+
     level_1 =
 @|  |  |  |  |  |  |  |  
  |  |  |  |  |  |  |  |  
@@ -65,7 +87,7 @@ class Atlases [singleton]
         throw Exception("[Atlases][parse] unexpected number of lines")
       endIf
       # remove the horizontal '-' separators
-      lines = lines.reduced<<String[]>>(function (index:Int32, line:String, newLines:String[])->String[]
+      lines = lines.reduce<<String[]>>(function (index:Int32, line:String, newLines:String[])->String[]
           if (not newLines?)
             newLines = String[]
           endIf

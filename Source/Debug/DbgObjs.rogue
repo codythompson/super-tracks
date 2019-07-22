@@ -15,7 +15,7 @@ trackSet = TileSet(minecartImages[1]).[ #                x   y
   add(TrackConnection.BOTTOM,                 minecartImages[12+(12*16)])
   add(TrackConnection.LEFT_TOP,               minecartImages[15+( 5*16)])
   add(TrackConnection.LEFT_RIGHT,             minecartImages[14+( 5*16)])
-  add(TrackConnection.LEFT_BOTTOM,            minecartImages[15+( 5*16)])
+  add(TrackConnection.LEFT_BOTTOM,            minecartImages[15+( 3*16)])
   add(TrackConnection.TOP_RIGHT,              minecartImages[13+( 5*16)])
   add(TrackConnection.TOP_BOTTOM,             minecartImages[13+( 4*16)])
   add(TrackConnection.RIGHT_BOTTOM,           minecartImages[13+( 3*16)])
@@ -29,6 +29,5 @@ trackSet = TileSet(minecartImages[1]).[ #                x   y
 global trackDbl = TileImage(trackSet):TileImage
 
 global minecartObj = GameObj():GameObj
-minecartObj.ij = XY(2, 4)
-minecartObj.add(minecartTop, XY(0, -1))
+# minecartObj.add(minecartTop, XY(0, -1))
 minecartObj.add(minecartBottom)

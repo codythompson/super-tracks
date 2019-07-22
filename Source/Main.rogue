@@ -19,19 +19,32 @@ Display( "Main" ).screen = MainScreen
 
 class MainScreen : Screen [singleton]
   PROPERTIES
+    debugs=Table<<String,String>>()
+    debugX = 10
+    debugY = 10
+    debugSpacing = 20
 
   METHODS
+    method init
+      prior.init
+      debugX = Display.width
     method on_start
       trace
       change_state( InitialState() )
 
     method on( e:PointerEvent )
 
-    method on_draw
+    method after_draw
+
+      forEach (key at i in debugs.keys)
+        SystemFont.anchor = Anchor.TOP_RIGHT
+        SystemFont.draw("$: $" (key,debugs[key]), XY(debugX,debugY+(i*debugSpacing)))
+      endForEach
 
     method on_resize
       # Called when the Display.size changes
       trace Display.size
+      debugX = Display.width - debugSpacing
 
     method on_update
       # Called 60 times a second
@@ -68,4 +81,3 @@ class InitialState : State<<MainScreen>>
     method on_update
       # Called 60 times a second
 endClass
-

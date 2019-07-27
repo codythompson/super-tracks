@@ -3,6 +3,8 @@ class TrackNode
     exits=TrackConnection.NONE:TrackConnection
     activeExit=TrackConnection.NONE:TrackConnection
   METHODS
+    method init( @exits, @activeExit )
+
     method init( @exits )
       activeExit = select
       {

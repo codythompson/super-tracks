@@ -31,17 +31,17 @@ class Atlases [singleton]
  |  |  |  |  |  |  |  |  
 
     level_1 =
-@|  |  |  |  |  |  |  |  
- |  |  |  |  |  |  |  |  
+@|  |  |  |l |  |  |  |  
+ |  | r| r|bR| R|  |  |  
  |-----------------------
- |  | t|  |  |  |  |  | t
+ |  | t|  | T|  |  |  | t
  | r|  |  |  |  | r| r|  
  |-----------------------
- | t|  |  |  |  | t|  |  
+ | t|  |  | t|  | t|  |  
  |  |  |  |  |  |  |  |  
  |-----------------------
- | t|  |  | t|  | t|  |  
- |  |  | r|  |  |  |  |  
+ | t|  |  | T|  | t|  |  
+ |  |  | R|  |  |  |  |  
  |-----------------------
  | t|  | t|  |  | t|  |  
  |  |  |  |  |  |  |  |  
@@ -50,7 +50,7 @@ class Atlases [singleton]
  |  |  |  |  |  | r| r|b 
  |-----------------------
  | t|l | t|  |  | t|  |  
- |  | r| r| r| r|  |  |b 
+ |  | R| r| r| r|  |  |b 
  |-----------------------
  |  | t|  |  |  |  |  |  
  |  |  |  |  |  |  |  |  
@@ -115,12 +115,26 @@ class Atlases [singleton]
         forEach(str at i in line)
           dbgstr += "$|" (str)
           local exits = TrackConnection(
+            select{str.contains("L", true):TrackConnection.LEFT->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("T", true):TrackConnection.TOP->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("R", true):TrackConnection.RIGHT->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("B", true):TrackConnection.BOTTOM->Int32 || TrackConnection.NONE->Int32} |
             select{str.contains("l", true):TrackConnection.LEFT->Int32 || TrackConnection.NONE->Int32} |
             select{str.contains("t", true):TrackConnection.TOP->Int32 || TrackConnection.NONE->Int32} |
             select{str.contains("r", true):TrackConnection.RIGHT->Int32 || TrackConnection.NONE->Int32} |
             select{str.contains("b", true):TrackConnection.BOTTOM->Int32 || TrackConnection.NONE->Int32}
           )
-          graph.setNodeAt(i, j, TrackNode(exits))
+          local activeExit = TrackConnection(
+            select{str.contains("L", true):TrackConnection.LEFT->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("T", true):TrackConnection.TOP->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("R", true):TrackConnection.RIGHT->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("B", true):TrackConnection.BOTTOM->Int32 || TrackConnection.NONE->Int32}
+          )
+          if (activeExit != TrackConnection.NONE)
+            graph.setNodeAt(i, j, TrackNode(exits, activeExit))
+          else
+            graph.setNodeAt(i, j, TrackNode(exits))
+          endIf
         endForEach
       endForEach
 

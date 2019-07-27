@@ -14,7 +14,7 @@ class TrackTileInfo ( i:Int32, j:Int32, layout:TrackConnection, entrances:TrackC
         # TrackConnection.LEFT: j ||
         TrackConnection.TOP: j-1 ||
         # TrackConnection.RIGHT: j ||
-        # TrackConnection.BOTTOM: j+1 ||
+        TrackConnection.BOTTOM: j+1 ||
         j...
       }
       return XY(exitI,exitJ)

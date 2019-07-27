@@ -20,20 +20,38 @@ Display( "Main" ).screen = MainScreen
 
 class MainScreen : Screen [singleton]
   PROPERTIES
+    tileMap:TileMapLayout
+    tileDrawer = BetterTileDrawer(Atlases.parse(Atlases.level_1), trackDbl)
+    gameObjs = GameObj[]
+
     debugs=Table<<String,String>>()
     debugX = 10
     debugY = 10
     debugSpacing = 20
 
   METHODS
-    method init
-      prior.init
-      debugX = Display.width
     method on_start
-      trace
-      change_state( InitialState() )
+      tileMap = TileMapLayout(100, 100, XY(100, 100))
+      gameObjs.add(minecartObj)
+      change_state( GameState() )
 
     method on( e:PointerEvent )
+
+    method on_draw
+      Display.clear( Color.DARK_GRAY )
+      tileMap.draw(tileDrawer.drawFunc)
+      forEach(i in 0..<tileDrawer.graph.tilesWide)
+        forEach(j in 0..<tileDrawer.graph.tilesHigh)
+          local tInfo = tileDrawer.graph.calcLayout(i,j)
+          if (tInfo.activeExit != TrackConnection.NONE)
+            Box(tileMap.map_to_screen(tInfo.exitIJ), XY(10,10)).fill(Color.RED)
+          endIf
+        endForEach
+      endForEach
+      forEach(obj in gameObjs)
+        obj.draw(tileMap)
+      endForEach
+
 
     method after_draw
 
@@ -44,40 +62,8 @@ class MainScreen : Screen [singleton]
 
     method on_resize
       # Called when the Display.size changes
-      trace Display.size
-      debugX = Display.width - debugSpacing
-
-    method on_update
-      # Called 60 times a second
-endClass
-
-
-class InitialState : State<<MainScreen>>
-  METHODS
-    method on_start
-      # Called when this state becomes the active state
-      println "Hello World"
-
-    method after_draw
-      # This happens after the current screen's on_draw()
-
-    method on( e:KeyEvent )
-      change_state( GameState() )
-      # trace e
-
-    method on( e:PointerEvent )
-      # if (e.is_press or e.is_release) trace e
-
-    method on( e:TextEvent )
-      # trace e
-
-    method on_draw
-      # This happens before the current screen's on_draw()
-      Display.clear( Color.BLUE )
-
-    method on_resize
-      trace
-      # Called when the Display.size changes
+      # trace Display.size
+      # debugX = Display.width - debugSpacing
 
     method on_update
       # Called 60 times a second

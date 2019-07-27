@@ -10,10 +10,6 @@
 
 - Figure out the best way to deal with custom rotations/offsets/handles per image in a tileset (support commented out case in DbgObjs.rogue)
 
-## Screen
-
-- change GameState from extending a state to extendinga screen
-
 
 # misc game design ideas
 

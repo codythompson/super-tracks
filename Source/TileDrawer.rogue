@@ -1,6 +1,27 @@
 uses Plasmacore
 
 class TileDrawer( graph:TrackGraph ) [aspect]
+  # GLOBAL PROPERTIES
+  #   colors = Color[][
+  #     Color.BLACK,
+  #     Color.BLUE,
+  #     Color.BROWN,
+  #     Color.CYAN,
+  #     Color.DARK_GRAY,
+  #     Color.DARK_GREEN,
+  #     Color.GRAY,
+  #     Color.GREEN,
+  #     Color.LIGHT_GRAY,
+  #     Color.LIME,
+  #     Color.MAGENTA,
+  #     Color.ORANGE,
+  #     Color.PURPLE,
+  #     Color.RED,
+  #     Color.TRANSPARENT,
+  #     Color.YELLOW,
+  #     Color.WHITE
+  #   ]
+
   METHODS
     method drawFunc->Function( index:Int32, ij:XY, bounds:Box ) [aspect]
 endClass

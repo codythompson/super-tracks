@@ -31,3 +31,6 @@ global trackDbl = TileImage(trackSet):TileImage
 global minecartObj = GameObj():GameObj
 # minecartObj.add(minecartTop, XY(0, -1))
 minecartObj.add(minecartBottom)
+
+global iconImages = Image[]("sheet_white2x.png")
+global arrowLeft = iconImages[0+(11*6)]:Image

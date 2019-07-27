@@ -47,6 +47,7 @@
 @ **Font* varfont
 @ **font* varfont
 @ mine.png split:16x16
+@ sheet_white2x.png split:6x20
 
 [Default]
 set image_sheet_size:4096

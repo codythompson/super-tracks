@@ -40,14 +40,14 @@ class MainScreen : Screen [singleton]
     method on_draw
       Display.clear( Color.DARK_GRAY )
       tileMap.draw(tileDrawer.drawFunc)
-      forEach(i in 0..<tileDrawer.graph.tilesWide)
-        forEach(j in 0..<tileDrawer.graph.tilesHigh)
-          local tInfo = tileDrawer.graph.calcLayout(i,j)
-          if (tInfo.activeExit != TrackConnection.NONE)
-            Box(tileMap.map_to_screen(tInfo.exitIJ), XY(10,10)).fill(Color.RED)
-          endIf
-        endForEach
-      endForEach
+      # forEach(i in 0..<tileDrawer.graph.tilesWide)
+      #   forEach(j in 0..<tileDrawer.graph.tilesHigh)
+      #     local tInfo = tileDrawer.graph.calcLayout(i,j)
+      #     if (tInfo.activeExit != TrackConnection.NONE)
+      #       Box(tileMap.map_to_screen(tInfo.exitIJ()), XY(10,10)).fill(Color.RED)
+      #     endIf
+      #   endForEach
+      # endForEach
       forEach(obj in gameObjs)
         obj.draw(tileMap)
       endForEach

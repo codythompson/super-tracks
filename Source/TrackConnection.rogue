@@ -28,4 +28,17 @@ enum TrackConnection
       # if the result of the bitwise and is greater than 0, that means the bit
       # representing "connection" was set to 1 in "layout" 
       return layout->Int32 & connection->Int32 > 0
+    
+    method entranceDirection( start:IJ, end:IJ )->TrackConnection
+      local horizontal = select{
+        start.i < end.i: LEFT ||
+        start.i > end.i: RIGHT ||
+        NONE...
+      }
+      local vertical = select{
+        start.j < end.j: TOP ||
+        start.j > end.j: BOTTOM ||
+        NONE...
+      }
+      return horizontal | vertical
 endEnum

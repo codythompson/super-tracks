@@ -1,17 +1,16 @@
 class TrackNode
   PROPERTIES
-    exits=TrackConnection.NONE:TrackConnection
-    activeExit=TrackConnection.NONE:TrackConnection
+    exitPairs:TrackConnection[]
+    activeExitIndex=0
   METHODS
-    method init( @exits, @activeExit )
+    method init( @exitPairs, @activeExitIndex )
 
-    method init( @exits )
-      activeExit = select
-      {
-        TrackConnection.layoutContains(exits, TrackConnection.TOP): TrackConnection.TOP ||
-        TrackConnection.layoutContains(exits, TrackConnection.LEFT): TrackConnection.LEFT ||
-        TrackConnection.layoutContains(exits, TrackConnection.RIGHT): TrackConnection.RIGHT ||
-        TrackConnection.layoutContains(exits, TrackConnection.BOTTOM): TrackConnection.BOTTOM ||
-        TrackConnection.NONE...
-      }
+    method init( @exitPairs )
+
+    method exits->TrackConnection
+      return exitPairs.reduce<<TrackConnection>>(function (i, exitPair, exits) => (exitPair | exits))
+
+    method activeExit->TrackConnection
+      if (exitPairs.count > 0) return exitPairs[activeExitIndex]
+      return TrackConnection.NONE
 endClass

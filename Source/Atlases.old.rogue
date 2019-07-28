@@ -1,0 +1,118 @@
+#{
+ exits from a tile
+ |--|
+ |LT|
+ |BR|
+ |--|
+}#
+
+class Atlases [singleton]
+  PROPERTIES
+    level_0 =
+@|  |  |  |  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  |  | t|  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  |  | t|  |  |  |  |  
+ |  | r|  |  |  |  |  |  
+ |-----------------------
+ |  | t|  |  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  | t|l |  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  |  | t|  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  |  | t|  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+
+  level_1b = 
+@|  |  |  |  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ |  |  |  |  |  |  |  |  
+ | r|  |  |  |  | r| r|  
+ |-----------------------
+ | t|  |  |  |  | t|  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ | t|  |  | t|  | t|  |  
+ |  |  | r|  |  |  |  |  
+ |-----------------------
+ | t|  | t|  |  | t|  |  
+ |  |  |  |  |  |  |  |  
+ |-----------------------
+ | t|  | t|l |l |lt|  | t
+ |  |  |  |  |  | r| r|b 
+ |-----------------------
+ | t|l | t|  |  | t|  |  
+ |  | r| r| r| r|  |  |b 
+ |-----------------------
+ |  | t|  |  |  |  |  |  
+ |  |  |  |  |  |  |  |  
+
+  METHODS
+    method parse( atlas:String )->TrackGraph
+      local lines = atlas.split("\n")
+      if (lines.count == 0 or lines.count % 3 != 2)
+        throw Exception("[Atlases][parse] unexpected number of lines")
+      endIf
+      # remove the horizontal '-' separators
+      lines = lines.reduce<<String[]>>(function (index:Int32, line:String, newLines:String[])->String[]
+          if (not newLines?)
+            newLines = String[]
+          endIf
+          if (index % 3 != 2) newLines.add(line)
+          return newLines
+        endFunction
+      )
+      local tileStrs = String[][]()
+      local tilesWide = lines[0].split('|').count
+      if (tilesWide == 0) throw Exception("[Atlases][parse] no separators found")
+      forEach(index in 0..<lines.count step 2)
+        local top = lines[index].split('|')
+        local bottom = lines[index+1].split('|')
+        if (top.count != tilesWide or bottom.count != tilesWide) throw Exception("[Atlases][parse] uneven lines")
+        local lineStrs = String[]()
+        forEach(i in 0..<top.count)
+          lineStrs.add(top[i] + bottom[i])
+        endForEach
+        tileStrs.add(lineStrs)
+      endForEach
+
+      local graph = TrackGraph(tilesWide, lines.count/2)
+      forEach(line at j in tileStrs)
+        local dbgstr = ""
+        forEach(str at i in line)
+          dbgstr += "$|" (str)
+          local exits = TrackConnection(
+            select{str.contains("L", true):TrackConnection.LEFT->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("T", true):TrackConnection.TOP->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("R", true):TrackConnection.RIGHT->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("B", true):TrackConnection.BOTTOM->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("l", true):TrackConnection.LEFT->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("t", true):TrackConnection.TOP->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("r", true):TrackConnection.RIGHT->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("b", true):TrackConnection.BOTTOM->Int32 || TrackConnection.NONE->Int32}
+          )
+          local activeExit = TrackConnection(
+            select{str.contains("L", true):TrackConnection.LEFT->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("T", true):TrackConnection.TOP->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("R", true):TrackConnection.RIGHT->Int32 || TrackConnection.NONE->Int32} |
+            select{str.contains("B", true):TrackConnection.BOTTOM->Int32 || TrackConnection.NONE->Int32}
+          )
+          if (activeExit != TrackConnection.NONE)
+            graph.setNodeAt(i, j, TrackNode(exits, activeExit))
+          else
+            graph.setNodeAt(i, j, TrackNode(exits))
+          endIf
+        endForEach
+      endForEach
+
+      return graph
+
+endClass

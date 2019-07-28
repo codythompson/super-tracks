@@ -2,18 +2,15 @@ uses Plasmacore
 
 class TrackTileInfo ( i:Int32, j:Int32, layout:TrackConnection, entrances:TrackConnection, exits:TrackConnection, activeExit:TrackConnection ) [compound]
   METHODS
-    method exitIJ->XY
-      local exitI = select(activeExit) {
+    method exitIJ( entrance:TrackConnection )->XY
+      local exitHalf = activeExit~entrance
+      local exitI = select(exitHalf) {
         TrackConnection.LEFT: i-1 ||
-        # TrackConnection.TOP: i ||
         TrackConnection.RIGHT: i+1 ||
-        # TrackConnection.BOTTOM: i ||
         i...
       }
-      local exitJ = select(activeExit) {
-        # TrackConnection.LEFT: j ||
+      local exitJ = select(exitHalf) {
         TrackConnection.TOP: j-1 ||
-        # TrackConnection.RIGHT: j ||
         TrackConnection.BOTTOM: j+1 ||
         j...
       }

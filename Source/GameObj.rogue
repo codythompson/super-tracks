@@ -11,6 +11,7 @@ class GameObj
 
     # TODO maybe move this out into components
     speed = 0:Real64
+    currentEntrance = TrackConnection.NONE
 
     images = Image[]
     imageOffsets = XY[]

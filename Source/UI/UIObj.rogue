@@ -1,0 +1,67 @@
+uses Plasmacore
+
+class UIObj
+  PROPERTIES
+    parent:UIObj
+    children = UIObj[]
+
+    left = 0:Real64
+    top = 0:Real64
+    width = 1:Real64
+    height = 1:Real64
+
+    color = Color(0x00ffffff)
+    # TODO image, text, font, fontColor, borders
+
+    # TODO is valid flag used for removing from Mains update/draw list
+
+    boundsDirty = true
+    cachedBounds:Box
+
+  METHODS
+    method set_left(@left)
+      boundsDirty = true
+    method set_top(@top)
+      boundsDirty = true
+    method set_width(@width)
+      boundsDirty = true
+    method set_height(@height)
+      boundsDirty = true
+
+    method add( child:UIObj )
+      child.parent = this
+      children.add(child)
+
+    method remove( child:UIObj )
+      child.parent = null
+      children.remove(child)
+
+    method update
+
+    method bounds->Box
+      if (boundsDirty)
+        local parentBounds:Box
+        if (parent)
+          parentBounds = parent.bounds
+        else
+          parentBounds = Display.bounds
+        endIf
+
+        local x = parentBounds.x + (left * parentBounds.width)
+        local y = parentBounds.y + (top * parentBounds.height)
+        local w = width * parentBounds.width
+        local h = height * parentBounds.height
+        cachedBounds = Box(x, y, w, h)
+        boundsDirty = false
+      endIf
+
+      return cachedBounds
+
+    update
+      (forEach in children).update
+
+    method draw
+      bounds.fill(color)
+      (forEach in children).draw
+
+endClass

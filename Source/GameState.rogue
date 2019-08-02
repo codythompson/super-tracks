@@ -18,5 +18,5 @@ class GameState : State<<MainScreen>>
       endForEach
 
     method on( e:KeyEvent )
-      change_state( GameState() )
+      if (e.is_press) push_state( SwitchTapState() )
 endClass

@@ -1,0 +1,39 @@
+uses Plasmacore
+
+class SwitchTapState : State<<MainScreen>>
+  GLOBAL PROPERTIES
+    switchUI = UIObj().[
+      add(
+        UIObj().[
+          color = Color(0xAAFFCCCC)
+          top = 0.0 * (1.0/3.0)
+          height = 1.0/3.0
+        ]
+      )
+      add(
+        UIObj().[
+          color = Color(0xAACCFFCC)
+          top = 1.0 * (1.0/3.0)
+          height = 1.0/3.0
+        ]
+      )
+      add(
+        UIObj().[
+          color = Color(0xAACCCCFF)
+          top = 2.0 * (1.0/3.0)
+          height = 1.0/3.0
+        ]
+      )
+    ]
+
+METHODS
+  method on_start
+    screen.baseUI.add(switchUI)
+
+  method on_finish
+    screen.baseUI.remove(switchUI)
+
+  method on( e:KeyEvent )
+    if (e.is_press) exit_state
+
+endClass

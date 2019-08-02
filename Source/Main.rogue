@@ -14,7 +14,9 @@ $include "Drawable.rogue"
 $include "TileSet.rogue"
 $include "GameObj.rogue"
 $include "GameState.rogue"
+$include "SwitchTapState.rogue"
 $include "GameObjMover.rogue"
+$include "UI/UIObj.rogue"
 
 Display( "Main" ).screen = MainScreen
 
@@ -23,6 +25,7 @@ class MainScreen : Screen [singleton]
     tileMap:TileMapLayout
     tileDrawer = BetterTileDrawer(Atlases.parse(Atlases.level_1), trackDbl)
     gameObjs = GameObj[]
+    baseUI = UIObj()
 
     debugs=Table<<String,String>>()
     debugX = 10
@@ -52,6 +55,7 @@ class MainScreen : Screen [singleton]
         obj.draw(tileMap)
       endForEach
 
+      baseUI.draw
 
     method after_draw
 

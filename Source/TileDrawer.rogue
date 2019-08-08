@@ -44,19 +44,19 @@ class StupidTileDrawer : TileDrawer
       bounds.fill( colorAt(ij.x, ij.y) )
 endClass
 
-class BetterTileDrawer( graph:TrackGraph, tileImage:TileImage ) : StupidTileDrawer
+class BetterTileDrawer( graph:TrackGraph, tileImages:TileImage[] ) : StupidTileDrawer
   METHODS
     method draw( index:Int32, ij:XY, bounds:Box )
       # draw a background color
       prior.draw(index, ij, bounds)
 
       #try to draw a tiled image
-      local tileInfo:TrackTileInfo
-      contingent
-        necessary (graph.contains(ij.x, ij.y))
-        tileInfo = graph.calcLayout(ij.x, ij.y)
-        necessary (tileImage.tileSet.contains(tileInfo))
-        satisfied
-          tileImage.draw(tileInfo, bounds)
-      endContingent
+      if (graph.contains(ij.x, ij.y))
+        local tileInfo = graph.calcLayout(ij.x, ij.y)
+        forEach(tileImage in tileImages)
+          if (tileImage.tileSet.contains(tileInfo))
+            tileImage.draw(tileInfo, bounds)
+          endIf
+        endForEach
+      endIf
 endClass

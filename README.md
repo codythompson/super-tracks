@@ -2,7 +2,10 @@
 
 ## pathing
 
-- implement track switching 
+- implement track switching
+    - display switch direction indicators
+        - will need to traverse graph to find switches on the route and deal with direction somehow
+    - change switch based on taps on overlay
 - Mover that doesn't follow tracks/graph
 - GameObj components (location, speed, angle) movers only act on objs with components they recognize and appropriate tags
 

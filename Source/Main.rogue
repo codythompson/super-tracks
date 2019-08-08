@@ -23,7 +23,7 @@ Display( "Main" ).screen = MainScreen
 class MainScreen : Screen [singleton]
   PROPERTIES
     tileMap:TileMapLayout
-    tileDrawer = BetterTileDrawer(Atlases.parse(Atlases.level_1), trackDbl)
+    tileDrawer = BetterTileDrawer(Atlases.parse(Atlases.level_1), [trackDbl])
     gameObjs = GameObj[]
     baseUI = UIObj()
 

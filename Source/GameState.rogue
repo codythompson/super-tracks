@@ -8,7 +8,7 @@ class GameState : State<<MainScreen>>
     method on_start
       mover = LinearObjMover()
       minecartObj.moveTo(2, 6)
-      # minecartObj.moveTo(1, 7)
+      # minecartObj.moveTo(1, 6)
       minecartObj.speed = 0.01
       minecartObj.currentEntrance = TrackConnection.LEFT
 

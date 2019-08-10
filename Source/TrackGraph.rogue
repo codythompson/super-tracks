@@ -73,7 +73,7 @@ class TrackGraph
         getEntranceBelow(i,j)
       )
       local combinedLayout = TrackConnection(exits->Int32 | entrances->Int32)
-      return TrackTileInfo(i,j,combinedLayout,entrances,exits,node.activeExit)
+      return TrackTileInfo(i,j,node,combinedLayout,entrances,exits,node.activeExit)
 
     method to->String
       local rows = String[]

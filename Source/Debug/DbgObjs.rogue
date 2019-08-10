@@ -1,13 +1,14 @@
 uses Plasmacore
 
 global minecartImages = Image[]("mine.png"):Image[]
+global iconImages = Image[]("sheet_white2x.png"):Image[]
 global minecartTop = minecartImages[208]:Image
 minecartTop.scale = 100 / minecartTop.width
 global minecartBottom = minecartImages[224]:Image
 minecartBottom.scale = 100 / minecartBottom.width
 
 global trackSet:TileSet
-trackSet = TileSet(minecartImages[1]).[ #                x   y
+trackSet = TileSet(minecartImages[1]).[ #                     x   y
   add(TrackConnection.NONE,                   minecartImages[ 4+( 5*16)])
   add(TrackConnection.LEFT,                   minecartImages[12+(11*16)])
   add(TrackConnection.TOP,                    minecartImages[12+(11*16)])
@@ -28,9 +29,17 @@ trackSet = TileSet(minecartImages[1]).[ #                x   y
 ]
 global trackDbl = TileImage(trackSet):TileImage
 
+local indicatorSet = ActiveBasedTileSet().[
+  #                                           x   y
+  add(TrackConnection.LEFT_TOP,    iconImages[1+( 0*6)])
+  add(TrackConnection.LEFT_RIGHT,  iconImages[2+( 1*6)])
+  add(TrackConnection.LEFT_BOTTOM, iconImages[4+( 9*6)])
+  add(TrackConnection.TOP_RIGHT,   iconImages[1+( 1*6)])
+  add(TrackConnection.TOP_BOTTOM,  iconImages[2+( 0*6)])
+  add(TrackConnection.RIGHT_BOTTOM,iconImages[4+(10*6)])
+]
+global switchIndicatorDbl = TileImage(indicatorSet)
+
 global minecartObj = GameObj():GameObj
 # minecartObj.add(minecartTop, XY(0, -1))
 minecartObj.add(minecartBottom)
-
-global iconImages = Image[]("sheet_white2x.png")
-global arrowLeft = iconImages[0+(11*6)]:Image

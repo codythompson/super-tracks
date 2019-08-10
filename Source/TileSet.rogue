@@ -12,6 +12,7 @@ class TileSet : TileImageSetInterface
     default:Image
     images=Table<<TrackConnection,Image>>()
   METHODS
+    method init
     method init( @default )
 
     method add( layout:TrackConnection, image:Image )
@@ -29,4 +30,14 @@ class TileSet : TileImageSetInterface
       forEach(layout in images.keys)
         cln.add(layout, images[layout])
       endForEach
+endClass
+
+class ActiveBasedTileSet : TileSet
+  METHODS
+    method contains( trackInfo:TrackTileInfo )->Logical
+      return trackInfo.node.exitPairs.count > 1 ...
+          and images.contains(trackInfo.activeExit)
+
+    method get( trackInfo:TrackTileInfo )->Image
+      return select{contains(trackInfo): images[trackInfo.activeExit] || default}
 endClass

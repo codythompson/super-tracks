@@ -1,6 +1,14 @@
 uses Plasmacore
 
-class TrackTileInfo ( i:Int32, j:Int32, layout:TrackConnection, entrances:TrackConnection, exits:TrackConnection, activeExit:TrackConnection ) [compound]
+class TrackTileInfo (
+    i:Int32,
+    j:Int32,
+    node:TrackNode,
+    layout:TrackConnection,
+    entrances:TrackConnection,
+    exits:TrackConnection,
+    activeExit:TrackConnection
+  ) [compound]
   METHODS
     method exitIJ( entrance:TrackConnection )->XY
       local exitHalf = activeExit~entrance

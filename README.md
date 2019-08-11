@@ -1,11 +1,16 @@
 # TODO NOTES
 
+- implement track switching
+    - show switch overlay when switch is tapped
+    - populate switch overlay
+
+## UIObj
+
+- new UIObjPointerEvent type for pressing and releasing on same UIObj
+
 ## pathing
 
-- implement track switching
-    - display switch direction indicators
-        - will need to traverse graph to find switches on the route and deal with direction somehow
-    - change switch based on taps on overlay
+- switch diagrams and overlays that are relative to current direction of train
 - Mover that doesn't follow tracks/graph
 - GameObj components (location, speed, angle) movers only act on objs with components they recognize and appropriate tags
 

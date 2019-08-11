@@ -32,6 +32,8 @@ class MainScreen : Screen [singleton]
     debugY = 10
     debugSpacing = 20
 
+    pressTarget:UIObj
+
   METHODS
     method on_start
       tileMap = TileMapLayout(100, 100, XY(100, 100))
@@ -39,6 +41,15 @@ class MainScreen : Screen [singleton]
       change_state( GameState() )
 
     method on( e:PointerEvent )
+      local target = baseUI.getTarget(e.position)
+      if (e.type == PointerEvent.PRESS)
+        pressTarget = target
+        baseUI.handlePressEvent(UIObjPointerEvent(e, target, pressTarget))
+      elseIf (e.type == PointerEvent.MOVE)
+        baseUI.handleMoveEvent(UIObjPointerEvent(e, target, pressTarget))
+      elseIf (e.type == PointerEvent.RELEASE)
+        baseUI.handleReleaseEvent(UIObjPointerEvent(e, target, pressTarget))
+      endIf
 
     method on_draw
       Display.clear( Color.DARK_GRAY )

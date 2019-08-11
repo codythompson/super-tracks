@@ -18,6 +18,9 @@ class UIObj
     boundsDirty = true
     cachedBounds:Box
 
+    listeners = Table<<Int32,(Function(UIObjPointerEvent))[]>>()
+    pressEvent:UIObjPointerEvent
+
   METHODS
     method set_left(@left)
       boundsDirty = true
@@ -37,6 +40,7 @@ class UIObj
       children.remove(child)
 
     method update
+      (forEach in children).update
 
     method bounds->Box
       if (boundsDirty)
@@ -57,11 +61,77 @@ class UIObj
 
       return cachedBounds
 
-    update
-      (forEach in children).update
-
     method draw
       bounds.fill(color)
       (forEach in children).draw
 
+    #{
+      tap/touch/pointer stuff
+    }#
+    method on( type:Int32, listener:Function(UIObjPointerEvent) )
+      if (not listeners.contains(type)) listeners[type] = (Function(UIObjPointerEvent))[]()
+      listeners[type].add(listener)
+
+    method fire( type:Int32, e:UIObjPointerEvent )
+      if (not listeners.contains(type)) return
+      forEach(listener in listeners[type])
+        listener(e)
+      endForEach
+
+    method contains( position:XY )->Logical
+      return bounds.contains(position)
+
+    method getTarget( position:XY )->UIObj
+      if (not contains(position)) return null
+      forEach(child in children)
+        if (child.contains(position)) return child.getTarget(position)
+      endForEach
+      return this
+
+    method clearPreviousEvent
+      if (pressEvent?)
+        pressEvent = null
+        forEach(child in children)
+          child.clearPreviousEvent()
+        endForEach
+      endIf
+
+    method handlePressEvent( e:UIObjPointerEvent )
+      if (not bounds.contains(e.position))
+        clearPreviousEvent()
+        return
+      endIf
+      pressEvent = e
+      fire(PointerEvent.PRESS, e)
+      forEach(child in children)
+        child.handlePressEvent(e)
+      endForEach
+
+    method handleMoveEvent( e:UIObjPointerEvent )
+      if (not pressEvent) return
+      fire(PointerEvent.MOVE, e)
+      forEach(child in children)
+        child.handleMoveEvent(e)
+      endForEach
+
+    method handleReleaseEvent( e:UIObjPointerEvent )
+      if (not pressEvent) return
+      fire(PointerEvent.RELEASE, e)
+      forEach(child in children)
+        child.handleReleaseEvent(e)
+      endForEach
+      clearPreviousEvent()
+
+endClass
+
+class UIObjPointerEvent : PointerEvent
+  PROPERTIES
+    pressTarget: UIObj
+    target:UIObj
+  METHODS
+    method init( original:PointerEvent, @target, @pressTarget )
+      type = original.type
+      position = original.position
+      delta = original.delta
+      index = original.index
 endClass

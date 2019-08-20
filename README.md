@@ -28,4 +28,5 @@
     - modern - electrity animation along a wire (or maybe a satellite)
     - space - light beams? or laser blasters :)
 
+- swipe control - screen is split into two different sections. swipe left, right or double tap? on lower section for closest switch. Upper section for next closest switch.
 - Power up that lets you pick left or right and switches will be automatically switched. Maybe this shouldn't be a power up and you should just always swipe left or right to dictate the next switch move

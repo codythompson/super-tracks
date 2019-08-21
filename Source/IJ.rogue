@@ -1,9 +1,17 @@
+uses Plasmacore
+
 class IJ( i:Int32, j:Int32 ) [compound]
   GLOBAL METHODS
     method create->IJ
       return IJ(0,0)
-    
+
     method create( n:Int32 )->IJ
       return IJ(n, n)
 
+    method create( xj:XY )->IJ
+      return IJ(xj.x, xj.y)
+
+  METHODS
+    method to->String
+      return "IJ($, $)" (i,j)
 endClass

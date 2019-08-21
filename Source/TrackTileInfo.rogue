@@ -9,6 +9,9 @@ class TrackTileInfo (
     exits:TrackConnection,
     activeExit:TrackConnection
   ) [compound]
+  GLOBAL METHODS
+    method create(i:Int32, j:Int32)->TrackTileInfo
+      return TrackTileInfo(i, j, null, TrackConnection.NONE, TrackConnection.NONE, TrackConnection.NONE, TrackConnection.NONE)
   METHODS
     method exitIJ( entrance:TrackConnection )->XY
       local exitHalf = activeExit~entrance

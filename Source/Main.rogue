@@ -16,6 +16,8 @@ $include "GameObj.rogue"
 $include "GameState.rogue"
 $include "SwitchTapState.rogue"
 $include "GameObjMover.rogue"
+$include "TileEvents.rogue"
+
 $include "UI/UIObj.rogue"
 
 Display( "Main" ).screen = MainScreen
@@ -23,7 +25,9 @@ Display( "Main" ).screen = MainScreen
 class MainScreen : Screen [singleton]
   PROPERTIES
     tileMap:TileMapLayout
-    tileDrawer = BetterTileDrawer(Atlases.parse(Atlases.level_1), [trackDbl, switchIndicatorDbl])
+    graph = Atlases.parse(Atlases.level_1):TrackGraph
+    tileDrawer = BetterTileDrawer(graph, [trackDbl, switchIndicatorDbl])
+    tileEventManager:TileEventManager
     gameObjs = GameObj[]
     baseUI = UIObj()
 
@@ -37,6 +41,7 @@ class MainScreen : Screen [singleton]
   METHODS
     method on_start
       tileMap = TileMapLayout(100, 100, XY(100, 100))
+      tileEventManager = TileEventManager(tileMap, graph)
       gameObjs.add(minecartObj)
       change_state( GameState() )
 
@@ -50,6 +55,8 @@ class MainScreen : Screen [singleton]
       elseIf (e.type == PointerEvent.RELEASE)
         baseUI.handleReleaseEvent(UIObjPointerEvent(e, target, pressTarget))
       endIf
+
+      tileEventManager.handlePointerEvent(e)
 
     method on_draw
       Display.clear( Color.DARK_GRAY )

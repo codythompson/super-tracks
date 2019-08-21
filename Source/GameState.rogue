@@ -3,6 +3,7 @@ uses Plasmacore
 class GameState : State<<MainScreen>>
   PROPERTIES
     mover:GameObjMover
+    tapListenerID:Int32
 
   METHODS
     method on_start
@@ -12,11 +13,23 @@ class GameState : State<<MainScreen>>
       minecartObj.speed = 0.01
       minecartObj.currentEntrance = TrackConnection.LEFT
 
+      tapListenerID = screen.tileEventManager.on(TileEvent.RELEASE, this=>handleTileRelease)
+
     method on_update
       forEach(obj in screen.gameObjs)
         mover.moveObj(obj, screen.tileDrawer.graph)
       endForEach
 
+    method on_finish
+      screen.tileEventManager.remove(TileEvent.RELEASE, tapListenerID)
+
     method on( e:KeyEvent )
       if (e.is_press) push_state( SwitchTapState() )
+
+    method handleSwitchTap( e:TileEvent )
+      println "switchTap $,$" (e.tileInfo.i, e.tileInfo.j)
+
+    method handleTileRelease( e:TileEvent )
+      if (e.tileInfo.node? and e.tileInfo.node.exitPairs.count > 1) handleSwitchTap(e)
+
 endClass

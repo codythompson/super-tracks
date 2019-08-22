@@ -32,6 +32,17 @@ class UIObj
     method set_height(@height)
       boundsDirty = true
 
+    method position->XY
+      return bounds.position
+    method set_position( position:XY )
+      local parentBounds = parent.bounds
+      left = position.x/parentBounds.width
+      top = position.y/parentBounds.height
+    method setPositionClamped( position:XY )
+      set_position(position)
+      left = left.clamped(0.0, 1.0-width)
+      top = top.clamped(0.0, 1.0-height)
+
     method add( child:UIObj )
       child.parent = this
       children.add(child)

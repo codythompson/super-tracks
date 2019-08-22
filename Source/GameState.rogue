@@ -1,25 +1,36 @@
 uses Plasmacore
 
-class GameState (images:Table<<TrackConnection,Image>>) : State<<MainScreen>>
+class GameState (playerCart:GameObj, switchIcons:Table<<TrackConnection,Image>>) : State<<MainScreen>>
   PROPERTIES
     tapListenerID:Int32
+    throttleChangeID:Int32
+    throttleSlider = UISlider().[
+      topValue = 0.1
+      bottomValue = 0.0
+      left = 0.95
+    ]
 
   METHODS
     method on_start
-      minecartObj.moveTo(2, 6)
-      # minecartObj.moveTo(1, 6)
-      minecartObj.speed = 0.01
-      minecartObj.currentEntrance = TrackConnection.LEFT
-
       tapListenerID = screen.tileEventManager.on(TileEvent.RELEASE, this=>handleTileRelease)
+
+      playerCart.moveTo(2, 6)
+      throttleSlider.value = playerCart.speed
+      screen.baseUI.add(throttleSlider)
+      throttleChangeID = throttleSlider.onChange(this=>handleThrottleChange)
 
     method on_finish
       screen.tileEventManager.remove(TileEvent.RELEASE, tapListenerID)
+      throttleSlider.removeChangeListener(throttleChangeID)
+      screen.baseUI.remove(throttleSlider)
 
     method handleSwitchTap( e:TileEvent )
-      push_state(SwitchTapState(images, e.tileInfo.node))
+      push_state(SwitchTapState(switchIcons, e.tileInfo.node))
 
     method handleTileRelease( e:TileEvent )
       if (e.tileInfo.node? and e.tileInfo.node.exitPairs.count > 1) handleSwitchTap(e)
+
+    method handleThrottleChange( newSpeed:Real64 )
+      playerCart.speed = newSpeed
 
 endClass

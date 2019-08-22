@@ -17,8 +17,9 @@ $include "GameState.rogue"
 $include "SwitchTapState.rogue"
 $include "GameObjMover.rogue"
 $include "TileEvents.rogue"
-$include "UIObj.rogue"
 $include "Camera.rogue"
+$include "UIObj.rogue"
+$include "UISlider.rogue"
 
 Display( "Main" ).screen = MainScreen
 
@@ -46,12 +47,17 @@ class MainScreen : Screen [singleton]
       tileEventManager = TileEventManager(tileMap, graph)
       gameObjs.add(minecartObj)
       camera = Camera(tileMap, minecartObj)
-      change_state( GameState(switchIndicatorImages) )
 
+      minecartObj.moveTo(2, 6)
+      # minecartObj.moveTo(1, 6)
+      minecartObj.speed = 0.01
+      minecartObj.currentEntrance = TrackConnection.LEFT
       tileEventManager.on(TileEvent.RELEASE,
         function(e:TileEvent)
-          if (e.tileInfo.i == 0 and e.tileInfo.j == 0) Display.screen.change_state(GameState(switchIndicatorImages))
+          if (e.tileInfo.i == 0 and e.tileInfo.j == 0) Display.screen.change_state(GameState(minecartObj, switchIndicatorImages))
         endFunction)
+
+      change_state( GameState(minecartObj, switchIndicatorImages) )
 
     method on( e:PointerEvent )
       local target = baseUI.getTarget(e.position)

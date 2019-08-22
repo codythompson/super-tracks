@@ -1,0 +1,58 @@
+uses Plasmacore
+
+class UISlider : UIObj
+  PROPERTIES
+    bottomValue = 1.0
+    topValue = 0.0
+
+    width = 0.15
+    height = 0.5
+    color = Color(0x88eeeeee)
+    knob = UIObj().[
+      height = 0.1
+      color = Color(0xeecccccc)
+    ]
+    changeListeners = Function(value:Real64)[]
+
+  METHODS
+    method init
+      add(knob)
+      on(UIObjPointerEvent.MOVE, this=>handleMove)
+
+    method percent->Real64
+      return knob.top/(1-knob.height)
+    method set_percent( percent:Real64 )
+      percent = percent.clamped(0, 1)
+      knob.top = percent*(1-knob.height)
+
+    method value->Real64
+      if (bottomValue >= topValue)
+        return percent * (bottomValue-topValue)
+      else
+        return (1-percent) * (topValue-bottomValue)
+      endIf
+    method set_value( value:Real64 )
+      if (bottomValue >= topValue)
+        percent = (value / (bottomValue-topValue))
+      else
+        percent = 1 + -(value / (topValue-bottomValue))
+        println("$ $" (value, percent))
+      endIf
+
+    method onChange( listener:Function(value:Real64) )->Int32
+      changeListeners.add(listener)
+      return changeListeners.count - 1
+
+    method removeChangeListener( index:Int32 )
+      changeListeners.remove_at(index)
+
+    method handleMove( e:UIObjPointerEvent )
+      knob.setPositionClamped(e.position - (knob.bounds.size/2))
+      fireOnChange(value)
+
+    method fireOnChange( newValue:Real64 )
+      forEach(listener in changeListeners)
+        listener(newValue)
+      endForEach
+
+endClass

@@ -1,7 +1,6 @@
 # NEARTERM TODOS
 
-- should still move in background while track switcher is up
-- throttle
+- Read in tracks from atlas file instead of hardcoded sting
 - crashing
     - when you hit a track end going too fast fire an event or something
 
@@ -16,6 +15,7 @@
 ## UIObj
 
 - new UIObjPointerEvent type for pressing and releasing on same UIObj
+- some mechanism for blocking touches from passing through to a UIObj that is under other UIObjs
 
 ## pathing
 

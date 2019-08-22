@@ -1,6 +1,5 @@
 # NEARTERM TODOS
 
-- BUG: When you change the activeExit, the cart won't continue on
 - scrolling
 
 # LONGTERM TODOS

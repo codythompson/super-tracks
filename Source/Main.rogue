@@ -29,6 +29,7 @@ class MainScreen : Screen [singleton]
     tileDrawer = BetterTileDrawer(graph, [trackDbl, switchIndicatorDbl])
     tileEventManager:TileEventManager
     gameObjs = GameObj[]
+    mover = LinearObjMover()
     camera:Camera
     baseUI = UIObj()
 
@@ -95,7 +96,9 @@ class MainScreen : Screen [singleton]
       # debugX = Display.width - debugSpacing
 
     method on_update
-      # Called 60 times a second
+      forEach(obj in gameObjs)
+        mover.moveObj(obj, tileDrawer.graph)
+      endForEach
 
     method after_update
       camera.update

@@ -2,23 +2,16 @@ uses Plasmacore
 
 class GameState (images:Table<<TrackConnection,Image>>) : State<<MainScreen>>
   PROPERTIES
-    mover:GameObjMover
     tapListenerID:Int32
 
   METHODS
     method on_start
-      mover = LinearObjMover()
       minecartObj.moveTo(2, 6)
       # minecartObj.moveTo(1, 6)
       minecartObj.speed = 0.01
       minecartObj.currentEntrance = TrackConnection.LEFT
 
       tapListenerID = screen.tileEventManager.on(TileEvent.RELEASE, this=>handleTileRelease)
-
-    method on_update
-      forEach(obj in screen.gameObjs)
-        mover.moveObj(obj, screen.tileDrawer.graph)
-      endForEach
 
     method on_finish
       screen.tileEventManager.remove(TileEvent.RELEASE, tapListenerID)

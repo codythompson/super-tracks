@@ -11,7 +11,8 @@ class UIObj
     height = 1:Real64
 
     color = Color(0x00ffffff)
-    # TODO image, text, font, fontColor, borders
+    image:Image
+    # TODO text, font, fontColor, borders
 
     # TODO is valid flag used for removing from Mains update/draw list
 
@@ -61,8 +62,29 @@ class UIObj
 
       return cachedBounds
 
+    method drawImage()
+      if (not image?) return
+
+      local bounds = bounds
+      local ar = bounds.width / bounds.height
+      local imageAR = image.width / image.height
+      local scale = select{
+        imageAR >= ar: XY(bounds.width / image.width) ||
+        XY(bounds.height / image.height)...
+      }
+      scale *= image.scale
+
+      local origScale = image.scale
+      local origAnchor = image.anchor
+      image.scale = scale
+      image.anchor = Anchor.CENTER
+      image.draw(XY(bounds.x + bounds.width/2, bounds.y + bounds.height/2))
+      image.scale = origScale
+      image.anchor = origAnchor
+
     method draw
       bounds.fill(color)
+      drawImage()
       (forEach in children).draw
 
     #{

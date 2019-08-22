@@ -43,7 +43,12 @@ class MainScreen : Screen [singleton]
       tileMap = TileMapLayout(100, 100, XY(100, 100))
       tileEventManager = TileEventManager(tileMap, graph)
       gameObjs.add(minecartObj)
-      change_state( GameState() )
+      change_state( GameState(switchIndicatorImages) )
+
+      tileEventManager.on(TileEvent.RELEASE,
+        function(e:TileEvent)
+          if (e.tileInfo.i == 0 and e.tileInfo.j == 0) Display.screen.change_state(GameState(switchIndicatorImages))
+        endFunction)
 
     method on( e:PointerEvent )
       local target = baseUI.getTarget(e.position)

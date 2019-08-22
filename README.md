@@ -1,8 +1,15 @@
-# TODO NOTES
+# NEARTERM TODOS
 
-- implement track switching
-    - show switch overlay when switch is tapped
-    - populate switch overlay
+- BUG: When you change the activeExit, the cart won't continue on
+- scrolling
+
+# LONGTERM TODOS
+
+## SwitchState
+
+- support for 4 exitPairs
+- indicate with exitPair is currently Active
+- switch diagrams and overlays that are relative to current direction of train
 
 ## UIObj
 
@@ -10,7 +17,6 @@
 
 ## pathing
 
-- switch diagrams and overlays that are relative to current direction of train
 - Mover that doesn't follow tracks/graph
 - GameObj components (location, speed, angle) movers only act on objs with components they recognize and appropriate tags
 

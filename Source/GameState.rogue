@@ -1,6 +1,6 @@
 uses Plasmacore
 
-class GameState : State<<MainScreen>>
+class GameState (images:Table<<TrackConnection,Image>>) : State<<MainScreen>>
   PROPERTIES
     mover:GameObjMover
     tapListenerID:Int32
@@ -23,11 +23,8 @@ class GameState : State<<MainScreen>>
     method on_finish
       screen.tileEventManager.remove(TileEvent.RELEASE, tapListenerID)
 
-    method on( e:KeyEvent )
-      if (e.is_press) push_state( SwitchTapState() )
-
     method handleSwitchTap( e:TileEvent )
-      println "switchTap $,$" (e.tileInfo.i, e.tileInfo.j)
+      push_state(SwitchTapState(images, e.tileInfo.node))
 
     method handleTileRelease( e:TileEvent )
       if (e.tileInfo.node? and e.tileInfo.node.exitPairs.count > 1) handleSwitchTap(e)

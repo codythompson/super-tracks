@@ -38,6 +38,7 @@ local indicatorSet = ActiveBasedTileSet().[
   add(TrackConnection.TOP_BOTTOM,  iconImages[2+( 0*6)])
   add(TrackConnection.RIGHT_BOTTOM,iconImages[4+(10*6)])
 ]
+global switchIndicatorImages = indicatorSet.images:Table<<TrackConnection, Image>>
 global switchIndicatorDbl = TileImage(indicatorSet)
 
 global minecartObj = GameObj():GameObj

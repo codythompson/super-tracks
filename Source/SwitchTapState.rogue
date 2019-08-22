@@ -2,6 +2,8 @@ uses Plasmacore
 
 class SwitchTapState : State<<MainScreen>>
   PROPERTIES
+    trackNode:TrackNode
+
     switchUI = UIObj().[
       add(
         UIObj().[
@@ -27,10 +29,16 @@ class SwitchTapState : State<<MainScreen>>
     ]
 
 METHODS
-  method on_start
+  method init(images:Table<<TrackConnection, Image>>, @trackNode)
+    local exitPairs = trackNode.exitPairs
+    switchUI.children[0].image = images[exitPairs[0]]
     switchUI.children[0].on(PointerEvent.RELEASE, this=>onTopSwitchTap)
+    switchUI.children[1].image = images[exitPairs[1]]
     switchUI.children[1].on(PointerEvent.RELEASE, this=>onMidSwitchTap)
+    switchUI.children[2].image = images[exitPairs[2]]
     switchUI.children[2].on(PointerEvent.RELEASE, this=>onBotSwitchTap)
+
+  method on_start
     screen.baseUI.add(switchUI)
 
   method on_finish
@@ -40,15 +48,15 @@ METHODS
     # if (e.is_press) exit_state
 
   method onTopSwitchTap( e:UIObjPointerEvent )
-    trace "TODO: tap top!"
+    trackNode.activeExitIndex = 0
     exit_state
 
   method onMidSwitchTap( e:UIObjPointerEvent )
-    trace "TODO: tap mid!"
+    trackNode.activeExitIndex = 1
     exit_state
 
   method onBotSwitchTap( e:UIObjPointerEvent )
-    trace "TODO: tap bot!"
+    trackNode.activeExitIndex = 2
     exit_state
 
 endClass

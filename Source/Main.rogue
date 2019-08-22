@@ -17,8 +17,8 @@ $include "GameState.rogue"
 $include "SwitchTapState.rogue"
 $include "GameObjMover.rogue"
 $include "TileEvents.rogue"
-
 $include "UIObj.rogue"
+$include "Camera.rogue"
 
 Display( "Main" ).screen = MainScreen
 
@@ -29,6 +29,7 @@ class MainScreen : Screen [singleton]
     tileDrawer = BetterTileDrawer(graph, [trackDbl, switchIndicatorDbl])
     tileEventManager:TileEventManager
     gameObjs = GameObj[]
+    camera:Camera
     baseUI = UIObj()
 
     debugs=Table<<String,String>>()
@@ -43,6 +44,7 @@ class MainScreen : Screen [singleton]
       tileMap = TileMapLayout(100, 100, XY(100, 100))
       tileEventManager = TileEventManager(tileMap, graph)
       gameObjs.add(minecartObj)
+      camera = Camera(tileMap, minecartObj)
       change_state( GameState(switchIndicatorImages) )
 
       tileEventManager.on(TileEvent.RELEASE,
@@ -94,4 +96,7 @@ class MainScreen : Screen [singleton]
 
     method on_update
       # Called 60 times a second
+
+    method after_update
+      camera.update
 endClass

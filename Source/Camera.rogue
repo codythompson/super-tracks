@@ -1,0 +1,7 @@
+uses Plasmacore
+
+class Camera (tileMap:TileMapLayout, player:GameObj)
+METHODS
+  method update
+    tileMap.camera = player.ij
+endClass

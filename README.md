@@ -1,6 +1,9 @@
 # NEARTERM TODOS
 
-- scrolling
+- should still move in background while track switcher is up
+- throttle
+- crashing
+    - when you hit a track end going too fast fire an event or something
 
 # LONGTERM TODOS
 

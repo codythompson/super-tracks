@@ -1,6 +1,6 @@
 uses Plasmacore
 
-class TileEvent : PointerEvent
+class TilePointerEvent : PointerEvent
   PROPERTIES
     tileInfo: TrackTileInfo
     #{
@@ -20,11 +20,11 @@ endClass
 
 class TileEventManager(tileMap:TileMapLayout, graph:TrackGraph)
   PROPERTIES
-    listeners = Table<<Int32, Function(TileEvent)[]>>()
+    listeners = Table<<Int32, Function(TilePointerEvent)[]>>()
 
   METHODS
-    method on( type:Int32, listener:Function(TileEvent) )->Int32
-      if (not listeners.contains(type)) listeners[type] = (Function(TileEvent))[]()
+    method on( type:Int32, listener:Function(TilePointerEvent) )->Int32
+      if (not listeners.contains(type)) listeners[type] = (Function(TilePointerEvent))[]()
       listeners[type].add(listener)
       return listeners[type].count - 1
 
@@ -32,7 +32,7 @@ class TileEventManager(tileMap:TileMapLayout, graph:TrackGraph)
       listeners[type].remove_at(index)
       # if (listeners[type].count == 0) listeners.remove(type)
 
-    method fire( e:TileEvent )
+    method fire( e:TilePointerEvent )
       local type = e.type
       if (not listeners.contains(type)) return
       forEach(listener in listeners[type])
@@ -42,7 +42,7 @@ class TileEventManager(tileMap:TileMapLayout, graph:TrackGraph)
     method handlePointerEvent( e:PointerEvent )
       local ij = IJ(tileMap.screen_to_map( e.position ))
       local tileInfo = graph.calcLayout(ij)
-      local tileEvent = TileEvent(e, tileInfo)
-      fire(tileEvent)
+      local tileTouchEvent = TilePointerEvent(e, tileInfo)
+      fire(tileTouchEvent)
 
 endClass

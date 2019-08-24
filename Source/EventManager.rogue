@@ -11,31 +11,73 @@ class TilePointerEvent : PointerEvent
       index = original.index
 endClass
 
-class EventManager(tileMap:TileMapLayout, graph:TrackGraph)
-  PROPERTIES
-    pointerListeners = Table<<Int32, Function(TilePointerEvent)[]>>()
+class GameObjEvent( target:GameObj )
+# class GameObjEvent( type:Int32, target:GameObj )
+  # ENUMERATE
+  #   DERAIL = 0b0001
 
   METHODS
+    method tag->String
+      return target.tag
+endClass
+
+class DerailEvent : GameObjEvent
+  PROPERTIES
+    tileInfo:TrackTileInfo
+  METHODS
+    method init( @target, @tileInfo )
+      # type = GameObjEvent.DERAIL
+endClass
+
+class Events [singleton]
+  PROPERTIES
+    pointerListeners = Table<<Int32, Function(TilePointerEvent)[]>>()
+    derailListeners = Table<<String, Function(DerailEvent)[]>>()
+
+  METHODS
+    #{
+      generalized event idea:
+      maybe instead of using a type, everything gets fired based on the
+      functions event type
+      like have an 'on' function per listener type
+      i.e. method on(listener:Function(TileReleaseEvent))
+              liteners[listener.type] = listener
+           method on(listener:Function(TileMoveEvent))
+              liteners[listener.type] = listener
+           method on(listener:Function(DerailEvent), tag:String)
+              liteners[listener.type][tag] = listener
+      might need something like
+        method emit<<T : GameObjEvent>>( event:T )
+    }#
     method on( type:Int32, listener:Function(TilePointerEvent) )->Int32
       if (not pointerListeners.contains(type)) pointerListeners[type] = (Function(TilePointerEvent))[]()
       pointerListeners[type].add(listener)
       return pointerListeners[type].count - 1
 
-    method removeTileEventListener( type:Int32, index:Int32 )
-      pointerListeners[type].remove_at(index)
-      # if (pointerListeners[type].count == 0) pointerListeners.remove(type)
-
-    method fire( e:TilePointerEvent )
+    method emit( e:TilePointerEvent )
       local type = e.type
       if (not pointerListeners.contains(type)) return
       forEach(listener in pointerListeners[type])
         listener(e)
       endForEach
 
-    method handlePointerEvent( e:PointerEvent )
-      local ij = IJ(tileMap.screen_to_map( e.position ))
-      local tileInfo = graph.calcLayout(ij)
-      local tileTouchEvent = TilePointerEvent(e, tileInfo)
-      fire(tileTouchEvent)
+    method removeTileEventListener( type:Int32, index:Int32 )
+      pointerListeners[type].remove_at(index)
+      # if (pointerListeners[type].count == 0) pointerListeners.remove(type)
+
+    method on( listener:Function(DerailEvent), tag:String)->Int32
+      if (not derailListeners.contains(tag)) derailListeners[tag] = Function(DerailEvent)[]
+      derailListeners[tag].add(listener)
+      return derailListeners[tag].count-1
+
+    method removeDerailListener( tag:String, index:Int32 )
+      derailListeners[tag].remove_at(index)
+      # if (derailListeners[tag].count == 0) derailListeners.remove(tag)
+
+    method emit( e:DerailEvent )
+      if (not derailListeners.contains(e.tag)) return
+      forEach(listener in derailListeners[e.tag])
+        listener(e)
+      endForEach
 
 endClass

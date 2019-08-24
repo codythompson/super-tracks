@@ -15,6 +15,7 @@ $include "TileSet.rogue"
 $include "GameObj.rogue"
 $include "GameState.rogue"
 $include "SwitchTapState.rogue"
+$include "DerailedState.rogue"
 $include "GameObjMover.rogue"
 $include "EventManager.rogue"
 $include "Camera.rogue"
@@ -28,7 +29,6 @@ class MainScreen : Screen [singleton]
     tileMap:TileMapLayout
     graph = Atlases.parse(Atlases.level_1):TrackGraph
     tileDrawer = BetterTileDrawer(graph, [trackDbl, switchIndicatorDbl])
-    events:EventManager
     gameObjs = GameObj[]
     mover = LinearObjMover()
     camera:Camera
@@ -44,19 +44,23 @@ class MainScreen : Screen [singleton]
   METHODS
     method on_start
       tileMap = TileMapLayout(100, 100, XY(100, 100))
-      events = EventManager(tileMap, graph)
       gameObjs.add(minecartObj)
       camera = Camera(tileMap, minecartObj)
 
+      Events.on(TilePointerEvent.RELEASE,
+        function(e:TilePointerEvent)
+          if (e.tileInfo.i == 0 and e.tileInfo.j == 0) (Display.screen as MainScreen).reset()
+        endFunction)
+
+      reset()
+
+    method reset
+      minecartObj.tag = "PLAYER"
       minecartObj.moveTo(2, 6)
       # minecartObj.moveTo(1, 6)
       minecartObj.speed = 0.01
       minecartObj.currentEntrance = TrackConnection.LEFT
-      events.on(TilePointerEvent.RELEASE,
-        function(e:TilePointerEvent)
-          if (e.tileInfo.i == 0 and e.tileInfo.j == 0) Display.screen.change_state(GameState(minecartObj, switchIndicatorImages))
-        endFunction)
-
+      minecartObj.derailed = false
       change_state( GameState(minecartObj, switchIndicatorImages) )
 
     method on( e:PointerEvent )
@@ -70,7 +74,10 @@ class MainScreen : Screen [singleton]
         baseUI.handleReleaseEvent(UIObjPointerEvent(e, target, pressTarget))
       endIf
 
-      events.handlePointerEvent(e)
+      local ij = IJ(tileMap.screen_to_map( e.position ))
+      local tileInfo = graph.calcLayout(ij)
+      local tileTouchEvent = TilePointerEvent(e, tileInfo)
+      Events.emit(tileTouchEvent)
 
     method on_draw
       Display.clear( Color.DARK_GRAY )

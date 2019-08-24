@@ -1,13 +1,21 @@
 # NEARTERM TODOS
 
 - Read in tracks from atlas file instead of hardcoded sting
-- crashing
-    - when you hit a track end going too fast fire an event or something
+- notion of a level (has a start and an end)
+- Simple AI
+    1. first more than one game obj
+    2. ai can switch it's own tracks
+- bullets?
+- BUG: Sometimes you have to click a switch button twice
 
 # LONGTERM TODOS
 
 ## EventManager
-- unify Pointer and GameObj events
+- allow for multiple tags (return a EventListenerPointer object that allows for removal from multple tag listener arrays)
+- allow for tag-less game obj event listeners (fires for every tag)
+    - maybe it has a black list of tags
+- try to generalized GameObj events (allow for arbitrary event types)
+- figure out a good way to make TilePointerEvent more like a TileEvent (not pointer specific)
 
 ## SwitchState
 

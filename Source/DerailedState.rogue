@@ -1,0 +1,15 @@
+uses Plasmacore
+
+class DerailedState : State<<MainScreen>>
+  PROPERTIES
+    startTime:Real64
+  METHODS
+    method on_start
+      startTime = System.time
+
+    method on_update
+      if (System.time - startTime > 3)
+        println("resetting from derail")
+        screen.reset()
+      endIf
+endClass

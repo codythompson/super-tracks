@@ -8,7 +8,7 @@ endClass
 class LinearObjMover : GameObjMover
   METHODS
     method moveObj(obj:GameObj, graph:TrackGraph)
-      if (Math.abs(obj.speed) < 0.00001)
+      if (Math.abs(obj.speed) < 0.00001 or obj.derailed)
         return
       endIf
 
@@ -19,7 +19,10 @@ class LinearObjMover : GameObjMover
         obj.ij = exitIJ
         obj.currentEntrance = TrackConnection.entranceDirection(obj.containingTile, IJ(exitIJ.x, exitIJ.y))
         obj.containingTile = IJ(exitIJ.x, exitIJ.y)
-        LOG(obj.ij, obj.currentEntrance, obj.containingTile)
+        if (obj.currentEntrance == TrackConnection.NONE)
+          obj.derailed = true
+          Events.emit(DerailEvent(obj, tileInfo))
+        endIf
       else
         local vel = XY(obj.speed, (exitIJ - obj.ij).radians)
         obj.ij += vel

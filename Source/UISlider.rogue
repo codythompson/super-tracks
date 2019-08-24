@@ -36,7 +36,6 @@ class UISlider : UIObj
         percent = (value / (bottomValue-topValue))
       else
         percent = 1 + -(value / (topValue-bottomValue))
-        println("$ $" (value, percent))
       endIf
 
     method onChange( listener:Function(value:Real64) )->Int32

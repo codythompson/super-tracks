@@ -4,6 +4,7 @@ class GameState (playerCart:GameObj, switchIcons:Table<<TrackConnection,Image>>)
   PROPERTIES
     tapListenerID:Int32
     throttleChangeID:Int32
+    derailListenerID:Int32
     throttleSlider = UISlider().[
       topValue = 0.1
       bottomValue = 0.0
@@ -12,15 +13,18 @@ class GameState (playerCart:GameObj, switchIcons:Table<<TrackConnection,Image>>)
 
   METHODS
     method on_start
-      tapListenerID = screen.events.on(TilePointerEvent.RELEASE, this=>handleTileRelease)
+      tapListenerID = Events.on(TilePointerEvent.RELEASE, this=>handleTileRelease)
 
       playerCart.moveTo(2, 6)
       throttleSlider.value = playerCart.speed
       screen.baseUI.add(throttleSlider)
       throttleChangeID = throttleSlider.onChange(this=>handleThrottleChange)
 
+      derailListenerID = Events.on(this=>handlePlayerDerail, "PLAYER")
+
     method on_finish
-      screen.events.removeTileEventListener(TilePointerEvent.RELEASE, tapListenerID)
+      Events.removeTileEventListener(TilePointerEvent.RELEASE, tapListenerID)
+      Events.removeDerailListener("PLAYER", derailListenerID)
       throttleSlider.removeChangeListener(throttleChangeID)
       screen.baseUI.remove(throttleSlider)
 
@@ -32,5 +36,9 @@ class GameState (playerCart:GameObj, switchIcons:Table<<TrackConnection,Image>>)
 
     method handleThrottleChange( newSpeed:Real64 )
       playerCart.speed = newSpeed
+
+      method handlePlayerDerail( e:DerailEvent )
+      println("DERAILED at $,$" (e.tileInfo.i, e.tileInfo.j))
+      change_state(DerailedState())
 
 endClass

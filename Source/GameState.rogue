@@ -12,7 +12,7 @@ class GameState (playerCart:GameObj, switchIcons:Table<<TrackConnection,Image>>)
 
   METHODS
     method on_start
-      tapListenerID = screen.events.on(TilePointerEvent.RELEASE, this=>handleTileRelease)
+      tapListenerID = screen.events.onPointer(TilePointerEvent.RELEASE, this=>handleTileRelease)
 
       playerCart.moveTo(2, 6)
       throttleSlider.value = playerCart.speed
@@ -20,7 +20,7 @@ class GameState (playerCart:GameObj, switchIcons:Table<<TrackConnection,Image>>)
       throttleChangeID = throttleSlider.onChange(this=>handleThrottleChange)
 
     method on_finish
-      screen.events.remove(TilePointerEvent.RELEASE, tapListenerID)
+      screen.events.removePointer(TilePointerEvent.RELEASE, tapListenerID)
       throttleSlider.removeChangeListener(throttleChangeID)
       screen.baseUI.remove(throttleSlider)
 

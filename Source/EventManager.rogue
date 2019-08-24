@@ -3,13 +3,6 @@ uses Plasmacore
 class TilePointerEvent : PointerEvent
   PROPERTIES
     tileInfo: TrackTileInfo
-    #{
-      // TODO see if we can extend the enums like so
-      enum {
-        TRAIN_ENTER = 3
-        TRAIN_EXIT = 4
-      }
-    }#
   METHODS
     method init( original:PointerEvent, @tileInfo )
       type = original.type
@@ -20,22 +13,22 @@ endClass
 
 class EventManager(tileMap:TileMapLayout, graph:TrackGraph)
   PROPERTIES
-    listeners = Table<<Int32, Function(TilePointerEvent)[]>>()
+    pointerListeners = Table<<Int32, Function(TilePointerEvent)[]>>()
 
   METHODS
-    method on( type:Int32, listener:Function(TilePointerEvent) )->Int32
-      if (not listeners.contains(type)) listeners[type] = (Function(TilePointerEvent))[]()
-      listeners[type].add(listener)
-      return listeners[type].count - 1
+    method onPointer( type:Int32, listener:Function(TilePointerEvent) )->Int32
+      if (not pointerListeners.contains(type)) pointerListeners[type] = (Function(TilePointerEvent))[]()
+      pointerListeners[type].add(listener)
+      return pointerListeners[type].count - 1
 
-    method remove( type:Int32, index:Int32 )
-      listeners[type].remove_at(index)
-      # if (listeners[type].count == 0) listeners.remove(type)
+    method removePointer( type:Int32, index:Int32 )
+      pointerListeners[type].remove_at(index)
+      # if (pointerListeners[type].count == 0) pointerListeners.remove(type)
 
     method fire( e:TilePointerEvent )
       local type = e.type
-      if (not listeners.contains(type)) return
-      forEach(listener in listeners[type])
+      if (not pointerListeners.contains(type)) return
+      forEach(listener in pointerListeners[type])
         listener(e)
       endForEach
 

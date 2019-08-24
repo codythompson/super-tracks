@@ -6,6 +6,9 @@
 
 # LONGTERM TODOS
 
+## EventManager
+- unify Pointer and GameObj events
+
 ## SwitchState
 
 - support for 4 exitPairs

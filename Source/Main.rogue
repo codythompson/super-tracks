@@ -52,7 +52,7 @@ class MainScreen : Screen [singleton]
       # minecartObj.moveTo(1, 6)
       minecartObj.speed = 0.01
       minecartObj.currentEntrance = TrackConnection.LEFT
-      events.on(TilePointerEvent.RELEASE,
+      events.onPointer(TilePointerEvent.RELEASE,
         function(e:TilePointerEvent)
           if (e.tileInfo.i == 0 and e.tileInfo.j == 0) Display.screen.change_state(GameState(minecartObj, switchIndicatorImages))
         endFunction)

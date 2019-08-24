@@ -16,12 +16,12 @@ class EventManager(tileMap:TileMapLayout, graph:TrackGraph)
     pointerListeners = Table<<Int32, Function(TilePointerEvent)[]>>()
 
   METHODS
-    method onPointer( type:Int32, listener:Function(TilePointerEvent) )->Int32
+    method on( type:Int32, listener:Function(TilePointerEvent) )->Int32
       if (not pointerListeners.contains(type)) pointerListeners[type] = (Function(TilePointerEvent))[]()
       pointerListeners[type].add(listener)
       return pointerListeners[type].count - 1
 
-    method removePointer( type:Int32, index:Int32 )
+    method removeTileEventListener( type:Int32, index:Int32 )
       pointerListeners[type].remove_at(index)
       # if (pointerListeners[type].count == 0) pointerListeners.remove(type)
 

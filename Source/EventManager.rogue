@@ -18,7 +18,7 @@ class TilePointerEvent : PointerEvent
       index = original.index
 endClass
 
-class TileEventManager(tileMap:TileMapLayout, graph:TrackGraph)
+class EventManager(tileMap:TileMapLayout, graph:TrackGraph)
   PROPERTIES
     listeners = Table<<Int32, Function(TilePointerEvent)[]>>()
 

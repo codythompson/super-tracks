@@ -9,7 +9,7 @@ class LinearObjMover : GameObjMover
   METHODS
     method moveObj(obj:GameObj, graph:TrackGraph)
       if (Math.abs(obj.speed) < 0.00001)
-        return 
+        return
       endIf
 
       # TODO: take desired diretion (for switches) into account
@@ -19,6 +19,7 @@ class LinearObjMover : GameObjMover
         obj.ij = exitIJ
         obj.currentEntrance = TrackConnection.entranceDirection(obj.containingTile, IJ(exitIJ.x, exitIJ.y))
         obj.containingTile = IJ(exitIJ.x, exitIJ.y)
+        LOG(obj.ij, obj.currentEntrance, obj.containingTile)
       else
         local vel = XY(obj.speed, (exitIJ - obj.ij).radians)
         obj.ij += vel

@@ -16,7 +16,7 @@ $include "GameObj.rogue"
 $include "GameState.rogue"
 $include "SwitchTapState.rogue"
 $include "GameObjMover.rogue"
-$include "TileEvents.rogue"
+$include "EventManager.rogue"
 $include "Camera.rogue"
 $include "UIObj.rogue"
 $include "UISlider.rogue"
@@ -28,7 +28,7 @@ class MainScreen : Screen [singleton]
     tileMap:TileMapLayout
     graph = Atlases.parse(Atlases.level_1):TrackGraph
     tileDrawer = BetterTileDrawer(graph, [trackDbl, switchIndicatorDbl])
-    tileEventManager:TileEventManager
+    events:EventManager
     gameObjs = GameObj[]
     mover = LinearObjMover()
     camera:Camera
@@ -44,7 +44,7 @@ class MainScreen : Screen [singleton]
   METHODS
     method on_start
       tileMap = TileMapLayout(100, 100, XY(100, 100))
-      tileEventManager = TileEventManager(tileMap, graph)
+      events = EventManager(tileMap, graph)
       gameObjs.add(minecartObj)
       camera = Camera(tileMap, minecartObj)
 
@@ -52,7 +52,7 @@ class MainScreen : Screen [singleton]
       # minecartObj.moveTo(1, 6)
       minecartObj.speed = 0.01
       minecartObj.currentEntrance = TrackConnection.LEFT
-      tileEventManager.on(TilePointerEvent.RELEASE,
+      events.on(TilePointerEvent.RELEASE,
         function(e:TilePointerEvent)
           if (e.tileInfo.i == 0 and e.tileInfo.j == 0) Display.screen.change_state(GameState(minecartObj, switchIndicatorImages))
         endFunction)
@@ -70,7 +70,7 @@ class MainScreen : Screen [singleton]
         baseUI.handleReleaseEvent(UIObjPointerEvent(e, target, pressTarget))
       endIf
 
-      tileEventManager.handlePointerEvent(e)
+      events.handlePointerEvent(e)
 
     method on_draw
       Display.clear( Color.DARK_GRAY )

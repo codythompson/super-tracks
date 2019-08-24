@@ -2,6 +2,8 @@ uses Plasmacore
 
 class GameObj
   PROPERTIES
+    tag:String
+
     containingTile:IJ
 
     ij:XY

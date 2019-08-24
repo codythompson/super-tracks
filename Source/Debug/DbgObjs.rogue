@@ -1,5 +1,25 @@
 uses Plasmacore
 
+# hacky, but gets the job done
+routine LOG(a:String)
+  LOG([a])
+endRoutine
+routine LOG(a:String, b:String)
+  LOG([a,b])
+endRoutine
+routine LOG(a:String, b:String, c:String)
+  LOG([a,b,c])
+endRoutine
+routine LOG(a:String, b:String, c:String, d:String)
+  LOG([a,b,c,d])
+endRoutine
+routine LOG(a:String, b:String, c:String, d:String, e:String)
+  LOG([a,b,c,d,e])
+endRoutine
+routine LOG(arr:String[])
+  println(arr.join(' '))
+endRoutine
+
 global minecartImages = Image[]("mine.png"):Image[]
 global iconImages = Image[]("sheet_white2x.png"):Image[]
 global minecartTop = minecartImages[208]:Image

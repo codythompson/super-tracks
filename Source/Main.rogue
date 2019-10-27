@@ -1,7 +1,7 @@
 uses Plasmacore
 
 # DEBUG
-$include "Debug/Atlases.rogue"
+$include "Debug/DbgAtlases.rogue"
 $include "Debug/DbgObjs.rogue"
 
 $include "IJ.rogue"
@@ -27,7 +27,7 @@ Display( "Main" ).screen = MainScreen
 class MainScreen : Screen [singleton]
   PROPERTIES
     tileMap:TileMapLayout
-    graph = Atlases.parse(Atlases.level_1):TrackGraph
+    graph = TrackGraph.parse(DbgAtlases.level_1):TrackGraph
     tileDrawer = BetterTileDrawer(graph, [trackDbl, switchIndicatorDbl])
     gameObjs = GameObj[]
     mover = LinearObjMover()

@@ -1,0 +1,117 @@
+#{
+ side of square indicates which tile the train is coming from
+ the "slot" on that side indicates where the train will exit
+ straight pieces have two indicators. one for the entrance and one for the exit
+
+ an asterisk indicates the currently active switch
+
+ in the future one track will be defined by only placing one indicator for straight tracks,
+ and using a special character (TBD) for curved tracks
+ 
+ LEFT_TOP
+ |---|
+ |o  |
+ |   |
+ |   |
+ |---|
+
+ LEFT_RIGHT
+ |---|
+ |   |
+ |o o|
+ |   |
+ |---|
+
+ LEFT_BOTTOM
+ |---|
+ |   |
+ |   |
+ |o  |
+ |---|
+
+ TOP_RIGHT
+ |---|
+ |  o|
+ |   |
+ |   |
+ |---|
+
+ TOP_BOTTOM
+ |---|
+ | o |
+ |   |
+ | o |
+ |---|
+
+ RIGHT_BOTTOM
+ |---|
+ |   |
+ |   |
+ |  o|
+ |---|
+}#
+
+class DbgAtlases [singleton]
+  PROPERTIES
+    level_0 =
+@|   |   |   |   |   |   |   |   
+ |   |   |   |   |   |   |   |   
+ |   |   |   |   |   |   |   |   
+ |---|---|---|---|---|---|---|---
+ |   |   | o |   |   |   |   |   
+ |   |   |   |   |   |   |   |   
+ |   |   | o |   |   |   |   |   
+ |---|---|---|---|---|---|---|---
+ |   |   |o  |   |   |   |   |   
+ |   |   |   |   |   |   |   |   
+ |   |  o|   |   |   |   |   |   
+ |---|---|---|---|---|---|---|---
+ |   | oo|   |   |   |   |   |   
+ |   |   |o o|   |   |   |   |   
+ |   | o*|   |   |   |   |   |   
+ |---|---|---|---|---|---|---|---
+ |   |  o|   |   |   |   |   |   
+ |   |   |   |   |   |   |   |   
+ |   |   |o  |   |   |   |   |   
+ |---|---|---|---|---|---|---|---
+ |   |   | o |   |   |   |   |   
+ |   |   |   |   |   |   |   |   
+ |   |   | o |   |   |   |   |   
+ |---|---|---|---|---|---|---|---
+ |   |   | o |   |   |   |   |   
+ |   |   |   |   |   |   |   |   
+ |   |   |   |   |   |   |   |   
+
+    level_1 =
+@|   |   |   |o  |   |   |   |   
+ |   |   |o o|o o|o o|   |   |   
+ |   |  o|   |*  |   |   |   |   
+ |-------------------------------
+ |   |o  |   | o |   |   |   |o  
+ |   |   |   |   |   |   |o o|   
+ |  o|   |   | o |   |  o|   |   
+ |-------------------------------
+ | o |   |   | o |   | o |   |   
+ |   |   |   |   |   |   |   |   
+ | o |   |   | o |   | o |   |   
+ |-------------------------------
+ | o |   |   |o  |   | o |   |   
+ |   |   |   |   |   |   |   |   
+ | o |   |  o|   |   | o |   |   
+ |-------------------------------
+ | o |   | o |   |   | o |   |   
+ |   |   |   |   |   |   |   |   
+ | o |   | o |   |   | o |   |   
+ |-------------------------------
+ | o |   | oo|   |   | o |   |o  
+ |   |   |   |o o|o o|o o|o o|   
+ | o |   | oo|   |   |ooo|   |o  
+ |-------------------------------
+ |  o|   |o o|   |   |o  |   | o 
+ |   |o o|o o|o o|o o|   |   |   
+ |   |o o|   |   |   |   |   | o 
+ |-------------------------------
+ |   | o |   |   |   |   |   |   
+ |   |   |   |   |   |   |   |   
+ |   |   |   |   |   |   |   |   
+endClass

@@ -29,7 +29,9 @@ class GameState (playerCart:GameObj, switchIcons:Table<<TrackConnection,Image>>)
       screen.baseUI.remove(throttleSlider)
 
     method handleSwitchTap( e:TilePointerEvent )
-      push_state(SwitchTapState(switchIcons, e.tileInfo.node))
+      local node = e.tileInfo.node
+      node.activeExitIndex++
+      node.activeExitIndex %= node.exitPairs.count
 
     method handleTileRelease( e:TilePointerEvent )
       if (e.tileInfo.node? and e.tileInfo.node.exitPairs.count > 1) handleSwitchTap(e)

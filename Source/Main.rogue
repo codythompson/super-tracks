@@ -19,6 +19,7 @@ $include "DerailedState.rogue"
 $include "GameObjMover.rogue"
 $include "EventManager.rogue"
 $include "Camera.rogue"
+$include "Atlas.rogue"
 $include "UIObj.rogue"
 $include "UISlider.rogue"
 
@@ -27,7 +28,7 @@ Display( "Main" ).screen = MainScreen
 class MainScreen : Screen [singleton]
   PROPERTIES
     tileMap:TileMapLayout
-    graph = TrackGraph.parse(DbgAtlases.level_1):TrackGraph
+    graph = Atlas.load("test1.txt"):TrackGraph
     tileDrawer = BetterTileDrawer(graph, [trackDbl, switchIndicatorDbl])
     gameObjs = GameObj[]
     mover = LinearObjMover()

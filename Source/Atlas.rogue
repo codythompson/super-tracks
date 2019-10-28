@@ -1,0 +1,109 @@
+uses Plasmacore
+
+class Atlas [singleton]
+  METHODS
+    method trimBlankLines(lines:String[])
+      while(lines.count > 0 and lines[0] == "")
+        lines.remove_first()
+      endWhile
+      while(lines.count > 0 and lines[lines.count-1] == "")
+        lines.remove_last()
+      endWhile
+
+    # TODO: this is big. Refactor this into multiple methods
+    method parse( atlas:String )->TrackGraph
+      local lines = atlas.split("\n")
+      trimBlankLines(lines)
+      if (lines.count == 0 or lines.count % 4 != 3)
+        throw Exception("[Atlase][parse] unexpected number of lines")
+      endIf
+      if (lines[0].count % 4 != 3)
+        throw Exception("[Atlase][parse] unexpected number of characters wide")
+      endIf
+      # remove the horizontal '-' separators
+      local rows = String[][][]()
+      local curRow = String[][]()
+      forEach(line at i in lines)
+        if (i % 4 != 3)
+          curRow.add(line.split('|'))
+        else
+          rows.add(curRow)
+          curRow = String[][]()
+        endIf
+      endForEach
+      rows.add(curRow)
+
+      local colsWide = rows[0][0].count
+      local rowsTall = rows.count
+      local graph = TrackGraph(colsWide, rowsTall)
+      forEach(colIndex in 0..<colsWide)
+        forEach(rowIndex in 0..<rowsTall)
+          local pairs = TrackConnection[]()
+          local activeIndex = 0
+
+          local top = rows[rowIndex][0][colIndex]
+          local mid = rows[rowIndex][1][colIndex]
+          local bot = rows[rowIndex][2][colIndex]
+
+          # TODO, check for one connections
+          # TODO, abstract this into something less hard-codey
+
+          #
+          # pairs involving left side of this tile
+          #
+          # LEFT_TOP
+          if (top[0] != ' ')
+            pairs.add(TrackConnection.LEFT_TOP)
+            if (top[0] == '*') activeIndex = pairs.count-1
+          endIf
+          # LEFT_RIGHT
+          if (mid[0] != ' ')
+            pairs.add(TrackConnection.LEFT_RIGHT)
+            if (mid[0] == '*') activeIndex = pairs.count-1
+          endIf
+          # LEFT_BOTTOM
+          if (bot[0] != ' ')
+            pairs.add(TrackConnection.LEFT_BOTTOM)
+            if (bot[0] == '*') activeIndex = pairs.count-1
+          endIf
+
+          #
+          # pairs involving the top side of this tile
+          #
+          # TOP_BOTTOM
+          if (top[1] != ' ')
+            pairs.add(TrackConnection.TOP_BOTTOM)
+            if (top[1] == '*') activeIndex = pairs.count-1
+          endIf
+          # TOP_RIGHT
+          if (top[2] != ' ')
+            pairs.add(TrackConnection.TOP_RIGHT)
+            if (top[2] == '*') activeIndex = pairs.count-1
+          endIf
+
+          #
+          # pairs involving the right side of this tile
+          #
+          # RIGHT_BOTTOM
+          if (bot[2] != ' ')
+            pairs.add(TrackConnection.RIGHT_BOTTOM)
+            if (bot[2] == '*') activeIndex = pairs.count-1
+          endIf
+
+          graph.setNodeAt(colIndex, rowIndex, TrackNode(pairs, activeIndex))
+        endForEach
+      endForEach
+
+      return graph
+
+    method load( atlasRelativePath:String )->TrackGraph
+      local atlasFile = Plasmacore.data_file(atlasRelativePath)
+      local contents = atlasFile.load_as_string()
+      try
+        return parse(contents)
+      catch(e:Exception)
+        LOG("Encountered error parsing atlas file", e)
+        System.exit(1)
+        return null #this is just to get XCode to compile the generated c++
+      endTry
+endClass

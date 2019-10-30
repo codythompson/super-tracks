@@ -2,17 +2,25 @@ uses Plasmacore
 
 class GameObjMover [aspect]
   METHODS
+    method getVel(obj:GameObj, graph:TrackGraph)->XY [aspect]
     method moveObj(obj:GameObj, graph:TrackGraph) [aspect]
 endClass
 
 class LinearObjMover : GameObjMover
   METHODS
+    method getVel(obj:GameObj, graph:TrackGraph)->XY
+      if (Math.abs(obj.speed) < 0.00001 or obj.derailed)
+        return XY(0)
+      endIf
+      local tileInfo = graph.calcLayout(obj.containingTile.i, obj.containingTile.j)
+      local exitIJ = tileInfo.exitIJ(obj.currentEntrance)
+      return XY(obj.speed, (exitIJ - obj.ij).radians)
+
     method moveObj(obj:GameObj, graph:TrackGraph)
       if (Math.abs(obj.speed) < 0.00001 or obj.derailed)
         return
       endIf
 
-      # TODO: take desired diretion (for switches) into account
       local tileInfo = graph.calcLayout(obj.containingTile.i, obj.containingTile.j)
       local exitIJ = tileInfo.exitIJ(obj.currentEntrance)
       if ((exitIJ - obj.ij).magnitude < obj.speed)
@@ -24,8 +32,7 @@ class LinearObjMover : GameObjMover
           Events.emit(DerailEvent(obj, tileInfo))
         endIf
       else
-        local vel = XY(obj.speed, (exitIJ - obj.ij).radians)
-        obj.ij += vel
+        obj.ij += getVel(obj, graph)
       endIf
 endClass
 

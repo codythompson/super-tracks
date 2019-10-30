@@ -27,7 +27,7 @@ Display( "Main" ).screen = MainScreen
 class MainScreen : Screen [singleton]
   PROPERTIES
     tileMap:TileMapLayout
-    graph = Atlas.load("test1.txt"):TrackGraph
+    graph = Atlas.load("bigtest.txt"):TrackGraph
     tileDrawer = BetterTileDrawer(graph, [trackDbl, switchIndicatorDbl])
     gameObjs = GameObj[]
     mover = LinearObjMover()
@@ -45,7 +45,7 @@ class MainScreen : Screen [singleton]
     method on_start
       tileMap = TileMapLayout(100, 100, XY(100, 100))
       gameObjs.add(minecartObj)
-      camera = Camera(tileMap, minecartObj)
+      camera = Camera(graph, tileMap, minecartObj, mover, 0.8)
 
       Events.on(TilePointerEvent.RELEASE,
         function(e:TilePointerEvent)
@@ -56,10 +56,10 @@ class MainScreen : Screen [singleton]
 
     method reset
       minecartObj.tag = "PLAYER"
-      minecartObj.moveTo(2, 6)
+      minecartObj.moveTo(8, 13)
       # minecartObj.moveTo(1, 6)
       minecartObj.speed = 0.01
-      minecartObj.currentEntrance = TrackConnection.LEFT
+      minecartObj.currentEntrance = TrackConnection.BOTTOM
       minecartObj.derailed = false
       change_state( GameState(minecartObj, switchIndicatorImages) )
 
@@ -106,7 +106,7 @@ class MainScreen : Screen [singleton]
     method on_resize
       # Called when the Display.size changes
       # trace Display.size
-      # debugX = Display.width - debugSpacing
+      debugX = Display.width - debugSpacing
 
     method on_update
       forEach(obj in gameObjs)

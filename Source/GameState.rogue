@@ -15,7 +15,8 @@ class GameState (playerCart:GameObj, switchIcons:Table<<TrackConnection,Image>>)
     method on_start
       tapListenerID = Events.on(TilePointerEvent.RELEASE, this=>handleTileRelease)
 
-      playerCart.moveTo(2, 6)
+      playerCart.moveTo(8, 13)
+      screen.tileMap.camera = playerCart.ij
       throttleSlider.value = playerCart.speed
       screen.baseUI.add(throttleSlider)
       throttleChangeID = throttleSlider.onChange(this=>handleThrottleChange)

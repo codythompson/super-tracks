@@ -1,12 +1,13 @@
 # NEARTERM TODOS
 
-- Read in tracks from atlas file instead of hardcoded sting
+- need a better way to visualize the switches
 - notion of a level (has a start and an end)
 - Simple AI
     1. first more than one game obj
     2. ai can switch it's own tracks
 - bullets?
-- BUG: Sometimes you have to click a switch button twice
+- cart's movement is jerky. try to fix
+- have camera offset based on screensize (see todos in Camera.rogue)
 
 # LONGTERM TODOS
 

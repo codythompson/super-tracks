@@ -1,7 +1,32 @@
 uses Plasmacore
 
-class Camera (tileMap:TileMapLayout, player:GameObj)
+$define THRESHOLD 0.00001
+
+class Camera (graph:TrackGraph, tileMap:TileMapLayout, player:GameObj, mover:GameObjMover, playerBufferPercentage:Real64)
 METHODS
-  method update
-    tileMap.camera = player.ij
+method update
+    local vel = mover.getVel(player, graph)
+    local i:Real64
+    local j:Real64
+
+    # TODO calculate based on screensize and playerBufferPercentage
+    local tileOffset = 3
+    if (vel.x < -THRESHOLD)
+        i = -tileOffset
+    #   i = player.ij.x + halfScreen.x
+    elseIf (vel.x > THRESHOLD)
+        i = tileOffset
+    #   i = player.ij.x - halfScreen.x
+    else
+    endIf
+    if (vel.y < -THRESHOLD)
+        j = -tileOffset
+    #   j = player.ij.y - halfScreen.y
+    elseIf (vel.y > THRESHOLD)
+        j = tileOffset
+    #   j = player.ij.y + halfScreen.y
+    endIf
+    # tileMap.camera = player.ij - XY(i, j)
+    # tileMap.camera += (tileMap.camera - (player.ij+XY(i,j)))*0.9
+    tileMap.camera += ((player.ij+XY(0.5,0.5)+XY(i,j))-tileMap.camera)*0.05
 endClass

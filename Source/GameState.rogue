@@ -17,6 +17,10 @@ class GameState (playerCart:GameObj, switchIcons:Table<<TrackConnection,Image>>)
 
       playerCart.moveTo(8, 13)
       screen.tileMap.camera = playerCart.ij
+      screen.tileMap.scale = 0.75
+      forEach(image in playerCart.images)
+        image.scale = 0.75
+      endForEach
       throttleSlider.value = playerCart.speed
       screen.baseUI.add(throttleSlider)
       throttleChangeID = throttleSlider.onChange(this=>handleThrottleChange)

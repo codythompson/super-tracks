@@ -62,5 +62,5 @@ global switchIndicatorImages = indicatorSet.images:Table<<TrackConnection, Image
 global switchIndicatorDbl = TileImage(indicatorSet)
 
 global minecartObj = GameObj():GameObj
-# minecartObj.add(minecartTop, XY(0, -1))
+minecartObj.add(minecartTop, XY(0, -0.5))
 minecartObj.add(minecartBottom)

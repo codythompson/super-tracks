@@ -28,5 +28,5 @@ method update
     endIf
     # tileMap.camera = player.ij - XY(i, j)
     # tileMap.camera += (tileMap.camera - (player.ij+XY(i,j)))*0.9
-    tileMap.camera += ((player.ij+XY(0.5,0.5)+XY(i,j))-tileMap.camera)*0.05
+    tileMap.camera += ((player.ij+XY(0.5,0.5)+XY(i,j))-tileMap.camera)*0.025
 endClass

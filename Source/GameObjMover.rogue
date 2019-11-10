@@ -9,12 +9,15 @@ endClass
 class LinearObjMover : GameObjMover
   METHODS
     method getVel(obj:GameObj, graph:TrackGraph)->XY
-      if (Math.abs(obj.speed) < 0.00001 or obj.derailed)
+      return getVel(obj, graph, obj.speed)
+
+    method getVel(obj:GameObj, graph:TrackGraph, speed:Real64)->XY
+      if (Math.abs(speed) < 0.00001 or obj.derailed)
         return XY(0)
       endIf
       local tileInfo = graph.calcLayout(obj.containingTile.i, obj.containingTile.j)
       local exitIJ = tileInfo.exitIJ(obj.currentEntrance)
-      return XY(obj.speed, (exitIJ - obj.ij).radians)
+      return XY(speed, (exitIJ - obj.ij).radians)
 
     method moveObj(obj:GameObj, graph:TrackGraph)
       if (Math.abs(obj.speed) < 0.00001 or obj.derailed)
@@ -23,13 +26,17 @@ class LinearObjMover : GameObjMover
 
       local tileInfo = graph.calcLayout(obj.containingTile.i, obj.containingTile.j)
       local exitIJ = tileInfo.exitIJ(obj.currentEntrance)
-      if ((exitIJ - obj.ij).magnitude < obj.speed)
+      local distanceToExit = (exitIJ - obj.ij).magnitude
+      if (distanceToExit < obj.speed)
         obj.ij = exitIJ
         obj.currentEntrance = TrackConnection.entranceDirection(obj.containingTile, IJ(exitIJ.x, exitIJ.y))
         obj.containingTile = IJ(exitIJ.x, exitIJ.y)
         if (obj.currentEntrance == TrackConnection.NONE)
           obj.derailed = true
           Events.emit(DerailEvent(obj, tileInfo))
+        else
+          # move by the "leftover" distance towards the new tile exit
+          obj.ij += getVel(obj, graph, obj.speed - distanceToExit)
         endIf
       else
         obj.ij += getVel(obj, graph)

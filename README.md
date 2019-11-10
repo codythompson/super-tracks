@@ -1,13 +1,13 @@
 # NEARTERM TODOS
 
+- touch/player controlled camera (makes it easier to switch switches)
 - need a better way to visualize the switches
+    - icon for non active exits separate from active exit icon
 - notion of a level (has a start and an end)
 - Simple AI
     1. first more than one game obj
-    2. ai can switch it's own tracks
+    2. ai can switch it's own tracks (maybe only supa powaful enemies)
 - bullets?
-- cart's movement is jerky. try to fix
-- have camera offset based on screensize (see todos in Camera.rogue)
 
 # LONGTERM TODOS
 
